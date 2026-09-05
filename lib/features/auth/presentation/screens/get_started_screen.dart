@@ -1,12 +1,45 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/api_client.dart';
+import '../../../../core/storage/secure_storage_service.dart';
+import '../../../../data/repositories/auth_repository.dart';
+import '../../../../data/services/auth_api_service.dart';
+import '../viewmodels/register_view_model.dart';
 import 'login_screen.dart';
+import 'register_screen.dart';
 
 class GetStartedScreen extends StatelessWidget {
   const GetStartedScreen({super.key});
 
   static const Color primaryCyan = Color(0xFF00C6D4);
   static const Color accentPink = Color(0xFFFF2D7A);
+
+  void _openRegister(BuildContext context) {
+    final apiClient = ApiClient();
+
+    final authApiService = AuthApiService(
+      apiClient,
+    );
+
+    final authRepository = AuthRepository(
+      authApiService,
+    );
+
+    final secureStorage = SecureStorageService();
+
+    final registerViewModel = RegisterViewModel(
+      authRepository,
+      secureStorage,
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RegisterScreen(
+          viewModel: registerViewModel,
+        ),
+      ),
+    );
+  }
 
   void _openLogin(BuildContext context) {
     Navigator.of(context).push(
@@ -29,6 +62,7 @@ class GetStartedScreen extends StatelessWidget {
             children: [
               const Spacer(),
 
+              // ZoGo Logo
               Image.asset(
                 'assets/images/zogo_logo.png',
                 width: 180,
@@ -36,6 +70,7 @@ class GetStartedScreen extends StatelessWidget {
 
               const SizedBox(height: 35),
 
+              // Heading
               const Text(
                 'Find your perfect place',
                 textAlign: TextAlign.center,
@@ -48,6 +83,7 @@ class GetStartedScreen extends StatelessWidget {
 
               const SizedBox(height: 12),
 
+              // Description
               const Text(
                 'Discover properties, connect with trusted agents, '
                 'and find a place you can call home.',
@@ -61,13 +97,13 @@ class GetStartedScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // Get Started
+              // Get Started → Register
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    _openLogin(context);
+                    _openRegister(context);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryCyan,
@@ -89,7 +125,7 @@ class GetStartedScreen extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // Already have an account
+              // Already have an account → Login
               TextButton(
                 onPressed: () {
                   _openLogin(context);

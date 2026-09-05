@@ -1,3 +1,6 @@
+import 'package:zogo_realtor/data/models/auth/register_request.dart';
+import 'package:zogo_realtor/data/models/auth/register_response.dart';
+
 import '../models/auth/google_login_request.dart';
 import '../models/auth/login_request.dart';
 import '../models/auth/login_response.dart';
@@ -18,5 +21,12 @@ class AuthRepository {
     GoogleLoginRequest request,
   ) {
     return _authApiService.googleLogin(request);
+  }
+
+
+    Future<RegisterResponse> register(
+    RegisterRequest request,
+  ) {
+    return _authApiService.register(request);
   }
 }

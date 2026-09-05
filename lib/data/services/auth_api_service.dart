@@ -1,3 +1,6 @@
+import 'package:zogo_realtor/data/models/auth/register_request.dart';
+import 'package:zogo_realtor/data/models/auth/register_response.dart';
+
 import '../../core/network/api_client.dart';
 import '../../core/constants/api_constants.dart';
 import '../models/auth/google_login_request.dart';
@@ -29,5 +32,17 @@ class AuthApiService {
     );
 
     return LoginResponse.fromJson(json);
+  }
+
+
+    Future<RegisterResponse> register(
+    RegisterRequest request,
+  ) async {
+    final json = await _apiClient.post(
+      ApiConstants.register,
+      body: request.toJson(),
+    );
+
+    return RegisterResponse.fromJson(json);
   }
 }
