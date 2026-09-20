@@ -1,12 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/SellerMyPropertiesScreen.dart';
 
 import '../widgets/featured_property_card.dart';
 import '../widgets/home_header.dart';
 import '../widgets/property_type_card.dart';
 import '../widgets/recommended_property_card.dart';
 
+import 'package:zogo_realtor/features/seller/presentation/screens/seller_activation_screen.dart';
+
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+    required this.roles,
+    required this.onActivateSeller,
+    this.onListProperty,
+  });
+
+  /// Roles returned from the login API.
+  ///
+  /// Example:
+  /// ['BYR']
+  ///
+  /// or:
+  /// ['SEL', 'BYR']
+  final List<String> roles;
+
+  /// Calls POST /api/v1/seller/activate and returns true on success.
+  final Future<bool> Function() onActivateSeller;
+
+  /// Optional override for the "create listing" action.
+  ///
+  /// Leave null and SellerMyPropertiesScreen navigates on its own.
+  /// Do NOT pass a callback that uses a disposed screen's context
+  /// (e.g. LoginScreen after pushReplacement).
+  final VoidCallback? onListProperty;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -15,7 +42,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+  /// Local, mutable copy of the roles.
+  ///
+  /// widget.roles is final and comes from the login response, so it can
+  /// never reflect an activation that happens during this session.
+  late List<String> _roles;
+
   static const Color primaryCyan = Color(0xFF00C6D4);
+  static const Color pinkAccent = Color(0xFFFF2D7A);
 
   final List<String> _propertyTypes = [
     'Buy',
@@ -28,6 +62,47 @@ class _HomeScreenState extends State<HomeScreen> {
     Icons.key_outlined,
     Icons.sell_outlined,
   ];
+
+  // ============================================================
+  // ROLES
+  // ============================================================
+
+  @override
+  void initState() {
+    super.initState();
+    _roles = List<String>.from(widget.roles);
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If the parent re-issues roles (e.g. after a token refresh),
+    // take the fresher list.
+    if (widget.roles != oldWidget.roles) {
+      _roles = List<String>.from(widget.roles);
+    }
+  }
+
+  bool get _hasSellerRole {
+    return _roles.any(
+      (role) => role.trim().toUpperCase() == 'SEL',
+    );
+  }
+
+  void _addSellerRoleLocally() {
+    if (_hasSellerRole) {
+      return;
+    }
+
+    setState(() {
+      _roles = [..._roles, 'SEL'];
+    });
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +125,10 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
+
+  // ============================================================
+  // HOME
+  // ============================================================
 
   Widget _buildHome() {
     return CustomScrollView(
@@ -99,9 +178,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ============================================================
+  // BUY / RENT / SELL
+  // ============================================================
+
   Widget _buildPropertyActions() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      padding: const EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        8,
+      ),
       child: Row(
         children: List.generate(
           _propertyTypes.length,
@@ -115,7 +203,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   title: _propertyTypes[index],
                   icon: _propertyIcons[index],
                   isSelected: index == 0,
-                  onTap: () {},
+                  onTap: () {
+                    _handlePropertyAction(index);
+                  },
                 ),
               ),
             );
@@ -125,9 +215,114 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _handlePropertyAction(int index) {
+    switch (index) {
+      case 0:
+        _handleBuy();
+        break;
+
+      case 1:
+        _handleRent();
+        break;
+
+      case 2:
+        _handleSell();
+        break;
+    }
+  }
+
+  // ============================================================
+  // BUY
+  // ============================================================
+
+  void _handleBuy() {
+    // Property search / buying flow will be connected here.
+  }
+
+  // ============================================================
+  // RENT
+  // ============================================================
+
+  void _handleRent() {
+    // Rental search flow will be connected here.
+  }
+
+  // ============================================================
+  // SELL
+  // ============================================================
+
+  Future<void> _handleSell() async {
+    // ----------------------------------------------------------
+    // ALREADY A SELLER -> GO STRAIGHT TO MY PROPERTIES
+    // ----------------------------------------------------------
+
+    if (_hasSellerRole) {
+      _openMyProperties();
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // NOT A SELLER -> SHOW ACTIVATION SCREEN
+    // ----------------------------------------------------------
+
+    final activated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) {
+          return SellerActivationScreen(
+            onActivateSeller: widget.onActivateSeller,
+          );
+        },
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (activated != true) {
+      return;
+    }
+
+    _addSellerRoleLocally();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Seller account activated successfully.',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    _openMyProperties();
+  }
+
+  void _openMyProperties() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) {
+          return SellerMyPropertiesScreen(
+            onListProperty: widget.onListProperty,
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // SECTION HEADER
+  // ============================================================
+
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
+      padding: const EdgeInsets.fromLTRB(
+        20,
+        22,
+        20,
+        12,
+      ),
       child: Row(
         children: [
           Text(
@@ -146,7 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text(
               'View All',
               style: TextStyle(
-                color: Color(0xFFFF2D7A),
+                color: pinkAccent,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -156,6 +351,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // RECOMMENDED PROPERTIES
+  // ============================================================
 
   Widget _buildRecommendedProperties() {
     final properties = [
@@ -207,6 +406,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ============================================================
+  // PLACEHOLDER
+  // ============================================================
+
   Widget _buildPlaceholder(String title) {
     return Center(
       child: Text(
@@ -219,39 +422,59 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ============================================================
+  // BOTTOM NAVIGATION
+  // ============================================================
+
   Widget _buildBottomNavigationBar() {
     return NavigationBar(
       selectedIndex: _selectedIndex,
+
       onDestinationSelected: (index) {
         setState(() {
           _selectedIndex = index;
         });
       },
+
       backgroundColor: Colors.white,
+
       elevation: 8,
-      indicatorColor: primaryCyan.withValues(alpha: 0.12),
+
+      indicatorColor: primaryCyan.withValues(
+        alpha: 0.12,
+      ),
+
       height: 72,
+
       destinations: const [
         NavigationDestination(
           icon: Icon(Icons.home_outlined),
           selectedIcon: Icon(Icons.home_rounded),
           label: 'Home',
         ),
+
         NavigationDestination(
           icon: Icon(Icons.search_outlined),
           selectedIcon: Icon(Icons.search_rounded),
           label: 'Search',
         ),
+
         NavigationDestination(
           icon: Icon(Icons.favorite_border_rounded),
           selectedIcon: Icon(Icons.favorite_rounded),
           label: 'Saved',
         ),
+
         NavigationDestination(
-          icon: Icon(Icons.chat_bubble_outline_rounded),
-          selectedIcon: Icon(Icons.chat_bubble_rounded),
+          icon: Icon(
+            Icons.chat_bubble_outline_rounded,
+          ),
+          selectedIcon: Icon(
+            Icons.chat_bubble_rounded,
+          ),
           label: 'Messages',
         ),
+
         NavigationDestination(
           icon: Icon(Icons.person_outline_rounded),
           selectedIcon: Icon(Icons.person_rounded),

@@ -25,6 +25,9 @@ dependencies:
   # Native Android/iOS launch splash
   flutter_native_splash: ^2.4.8
   google_sign_in: ^7.2.0
+  dio: ^5.11.1
+
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -73,3 +76,4 @@ flutter_native_splash:
     color: "#FFFFFF"
     image: "assets/images/zogo_native_logo.png"
     icon_background_color: "#FFFFFF"
+

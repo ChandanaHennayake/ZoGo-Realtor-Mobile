@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_client.dart';
@@ -9,6 +10,10 @@ import '../viewmodels/login_view_model.dart';
 
 // Keep your existing HomeScreen import if the path is different.
 import '../../../home/presentation/screens/home_screen.dart';
+
+// NEW: seller activation API + constants.
+import 'package:zogo_realtor/core/constants/api_constants.dart';
+import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -124,7 +129,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
+          builder: (_) => HomeScreen(
+            roles: _loginViewModel.roles,
+            onActivateSeller: _activateSeller,
+          ),
         ),
       );
 
@@ -144,7 +152,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _googleLogin() async {
     FocusScope.of(context).unfocus();
 
-    final success = await _loginViewModel.googleLogin();
+    final success =
+        await _loginViewModel.googleLogin();
 
     if (!mounted) {
       return;
@@ -153,7 +162,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
+          builder: (_) => HomeScreen(
+            roles: _loginViewModel.roles,
+            onActivateSeller: _activateSeller,
+          ),
         ),
       );
 
@@ -164,6 +176,38 @@ class _LoginScreenState extends State<LoginScreen> {
       _loginViewModel.errorMessage ??
           'Google login failed. Please try again.',
     );
+  }
+
+  // ============================================================
+  // SELLER ACTIVATION
+  // ============================================================
+
+  /// POST /api/v1/seller/activate
+  ///
+  /// This used to be a stub returning false, which made the
+  /// activation button appear broken. It now calls the API.
+  ///
+  /// Errors are deliberately NOT swallowed here — SellerService
+  /// throws, and SellerActivationScreen shows the message.
+  Future<bool> _activateSeller() async {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: ApiConstants.baseUrl,
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 20),
+      ),
+    );
+
+    try {
+      final sellerService = SellerService(
+        dio,
+        SecureStorageService(),
+      );
+
+      return await sellerService.activateSeller();
+    } finally {
+      dio.close();
+    }
   }
 
   // ============================================================
@@ -213,13 +257,11 @@ class _LoginScreenState extends State<LoginScreen> {
             horizontal: 24,
             vertical: 32,
           ),
-
           child: Form(
             key: _formKey,
-
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 30),
 
@@ -280,43 +322,46 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 TextFormField(
                   controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
+                  keyboardType:
+                      TextInputType.emailAddress,
+                  textInputAction:
+                      TextInputAction.next,
                   enabled: !isLoading,
-
                   decoration: InputDecoration(
                     hintText: 'Enter your email',
-
                     prefixIcon: const Icon(
                       Icons.email_outlined,
                     ),
-
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius:
+                          BorderRadius.circular(14),
                     ),
-
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
+                    enabledBorder:
+                        OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(
                         color: Color(0xFFE0E0E0),
                       ),
                     ),
-
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
+                    focusedBorder:
+                        OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(
                         color: Color(0xFF00AFC1),
                         width: 2,
                       ),
                     ),
-
                     filled: true,
-
-                    fillColor: const Color(0xFFF8FAFA),
+                    fillColor:
+                        const Color(0xFFF8FAFA),
                   ),
-
                   validator: (value) {
-                    final email = value?.trim() ?? '';
+                    final email =
+                        value?.trim() ?? '';
 
                     if (email.isEmpty) {
                       return 'Please enter your email';
@@ -326,7 +371,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
                     );
 
-                    if (!emailRegex.hasMatch(email)) {
+                    if (!emailRegex
+                        .hasMatch(email)) {
                       return 'Please enter a valid email';
                     }
 
@@ -353,26 +399,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 TextFormField(
                   controller: _passwordController,
-
                   obscureText: _obscurePassword,
-
-                  textInputAction: TextInputAction.done,
-
+                  textInputAction:
+                      TextInputAction.done,
                   enabled: !isLoading,
-
                   onFieldSubmitted: (_) {
                     if (!isLoading) {
                       _login();
                     }
                   },
-
                   decoration: InputDecoration(
                     hintText: 'Enter your password',
-
                     prefixIcon: const Icon(
                       Icons.lock_outline,
                     ),
-
                     suffixIcon: IconButton(
                       onPressed: isLoading
                           ? null
@@ -382,40 +422,42 @@ class _LoginScreenState extends State<LoginScreen> {
                                     !_obscurePassword;
                               });
                             },
-
                       icon: Icon(
                         _obscurePassword
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                       ),
                     ),
-
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius:
+                          BorderRadius.circular(14),
                     ),
-
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
+                    enabledBorder:
+                        OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(
                         color: Color(0xFFE0E0E0),
                       ),
                     ),
-
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
+                    focusedBorder:
+                        OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(
                         color: Color(0xFF00AFC1),
                         width: 2,
                       ),
                     ),
-
                     filled: true,
-
-                    fillColor: const Color(0xFFF8FAFA),
+                    fillColor:
+                        const Color(0xFFF8FAFA),
                   ),
-
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null ||
+                        value.isEmpty) {
                       return 'Please enter your password';
                     }
 
@@ -430,18 +472,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 // --------------------------------------------------
 
                 Align(
-                  alignment: Alignment.centerRight,
-
+                  alignment:
+                      Alignment.centerRight,
                   child: TextButton(
                     onPressed: isLoading
                         ? null
                         : _forgotPassword,
-
                     child: const Text(
                       'Forgot Password?',
                       style: TextStyle(
                         color: Color(0xFF00AFC1),
-                        fontWeight: FontWeight.w600,
+                        fontWeight:
+                            FontWeight.w600,
                       ),
                     ),
                   ),
@@ -456,37 +498,31 @@ class _LoginScreenState extends State<LoginScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 54,
-
                   child: ElevatedButton(
-                    onPressed: isLoading
-                        ? null
-                        : _login,
-
-                    style: ElevatedButton.styleFrom(
+                    onPressed:
+                        isLoading ? null : _login,
+                    style:
+                        ElevatedButton.styleFrom(
                       backgroundColor:
                           const Color(0xFF00AFC1),
-
-                      foregroundColor: Colors.white,
-
+                      foregroundColor:
+                          Colors.white,
                       disabledBackgroundColor:
                           const Color(0xFF9DDDE2),
-
-                      shape: RoundedRectangleBorder(
+                      shape:
+                          RoundedRectangleBorder(
                         borderRadius:
                             BorderRadius.circular(14),
                       ),
-
                       elevation: 0,
                     ),
-
                     child: isLoading
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-
-                            child: CircularProgressIndicator(
+                            child:
+                                CircularProgressIndicator(
                               strokeWidth: 2.5,
-
                               valueColor:
                                   AlwaysStoppedAnimation<
                                       Color>(
@@ -496,10 +532,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : const Text(
                             'Sign In',
-
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontWeight:
+                                  FontWeight.w700,
                             ),
                           ),
                   ),
@@ -518,24 +554,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Color(0xFFE5E5E5),
                       ),
                     ),
-
                     Padding(
                       padding:
                           const EdgeInsets.symmetric(
                         horizontal: 16,
                       ),
-
                       child: Text(
                         'OR',
-
                         style: TextStyle(
-                          color: Colors.grey.shade600,
+                          color:
+                              Colors.grey.shade600,
                           fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          fontWeight:
+                              FontWeight.w500,
                         ),
                       ),
                     ),
-
                     const Expanded(
                       child: Divider(
                         color: Color(0xFFE5E5E5),
@@ -553,44 +587,41 @@ class _LoginScreenState extends State<LoginScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 54,
-
                   child: OutlinedButton(
-                    onPressed: isLoading
-                        ? null
-                        : _googleLogin,
-
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
+                    onPressed:
+                        isLoading
+                            ? null
+                            : _googleLogin,
+                    style:
+                        OutlinedButton.styleFrom(
+                      shape:
+                          RoundedRectangleBorder(
                         borderRadius:
                             BorderRadius.circular(14),
                       ),
-
                       side: const BorderSide(
                         color: Color(0xFFE0E0E0),
                       ),
-
-                      backgroundColor: Colors.white,
+                      backgroundColor:
+                          Colors.white,
                     ),
-
                     child: Row(
                       mainAxisAlignment:
                           MainAxisAlignment.center,
-
                       children: [
                         const Icon(
                           Icons.g_mobiledata,
                           size: 28,
                         ),
-
                         const SizedBox(width: 8),
-
                         const Text(
                           'Continue with Google',
-
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF333333),
+                            fontWeight:
+                                FontWeight.w600,
+                            color:
+                                Color(0xFF333333),
                           ),
                         ),
                       ],
@@ -607,29 +638,26 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment:
                       MainAxisAlignment.center,
-
                   children: [
                     Text(
                       "Don't have an account?",
-
                       style: TextStyle(
-                        color: Colors.grey.shade700,
+                        color:
+                            Colors.grey.shade700,
                         fontSize: 14,
                       ),
                     ),
-
                     TextButton(
                       onPressed:
                           isLoading
                               ? null
                               : _goToRegister,
-
                       child: const Text(
                         'Create Account',
-
                         style: TextStyle(
                           color: Color(0xFF00AFC1),
-                          fontWeight: FontWeight.w700,
+                          fontWeight:
+                              FontWeight.w700,
                         ),
                       ),
                     ),

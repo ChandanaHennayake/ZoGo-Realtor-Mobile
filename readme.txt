@@ -167,3 +167,52 @@ lib/
             ├── screens/
             ├── viewmodels/
             └── widgets/
+
+
+
+
+
+
+
+
+
+
+            seller/
+│
+├── data/
+│   └── services/
+│       └── seller_service.dart
+│
+├── models/
+│   ├── property.dart
+│   ├── property_feature.dart
+│   ├── property_financials.dart
+│   ├── property_legal_details.dart
+│   └── property_media.dart
+│
+└── presentation/
+    │
+    ├── screens/
+    │   │
+    │   ├── seller_activation_screen.dart
+    │   ├── SellerMyPropertiesScreen.dart
+    │   │
+    │   └── create_property/
+    │       │
+    │       ├── create_property_screen.dart
+    │       ├── property_type_screen.dart
+    │       ├── property_basic_screen.dart
+    │       ├── property_location_screen.dart
+    │       ├── property_details_screen.dart
+    │       ├── property_features_screen.dart
+    │       ├── property_financials_screen.dart
+    │       ├── property_legal_screen.dart
+    │       ├── property_media_screen.dart
+    │       └── property_review_screen.dart
+    │
+    └── widgets/
+        ├── listing_step_indicator.dart
+        ├── listing_bottom_buttons.dart
+        ├── property_form_section.dart
+        ├── property_image_grid.dart
+        └── property_summary_card.dart
