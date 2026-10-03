@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/storage/secure_storage_service.dart';
-import '../../../../data/repositories/auth_repository.dart';
 
 import '../viewmodels/register_view_model.dart';
 import 'login_screen.dart';

@@ -1,37 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_legal_screen.dart';
-
-import 'property_features_screen.dart';
-
-class PropertyFinancialsResult {
-  final PropertyFeaturesResult featuresData;
-
-  final String sellingPrice;
-  final bool priceNegotiable;
-  final String monthlyRent;
-  final String advancePayment;
-  final String maintenanceFee;
-  final String otherCharges;
-  final String financialNotes;
-
-  const PropertyFinancialsResult({
-    required this.featuresData,
-    required this.sellingPrice,
-    required this.priceNegotiable,
-    required this.monthlyRent,
-    required this.advancePayment,
-    required this.maintenanceFee,
-    required this.otherCharges,
-    required this.financialNotes,
-  });
-}
+import 'package:flutter/services.dart';
+import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_legal_details_screen.dart';
 
 class PropertyFinancialsScreen extends StatefulWidget {
-  final PropertyFeaturesResult featuresData;
+  final String propertyId;
+  final String? propertyType;
 
   const PropertyFinancialsScreen({
     super.key,
-    required this.featuresData,
+    required this.propertyId,
+    this.propertyType,
   });
 
   @override
@@ -39,527 +18,820 @@ class PropertyFinancialsScreen extends StatefulWidget {
       _PropertyFinancialsScreenState();
 }
 
-class _PropertyFinancialsScreenState
-    extends State<PropertyFinancialsScreen> {
-  final _formKey = GlobalKey<FormState>();
-
-  final _sellingPriceController = TextEditingController();
-  final _monthlyRentController = TextEditingController();
-  final _advancePaymentController = TextEditingController();
-  final _maintenanceFeeController = TextEditingController();
-  final _otherChargesController = TextEditingController();
-  final _financialNotesController = TextEditingController();
-
-  bool _priceNegotiable = false;
-
+class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
   static const Color primaryColor = Color(0xFF00C6D4);
+
+  final _formKey = GlobalKey<FormState>();
+  final SellerService _sellerService = SellerService();
+
+  final TextEditingController _maintenanceFeeController =
+      TextEditingController();
+  final TextEditingController _sinkingFundAmountController =
+      TextEditingController();
+  final TextEditingController _outstandingAmountController =
+      TextEditingController();
+  final TextEditingController _outstandingDescriptionController =
+      TextEditingController();
+
+  int _maintenanceFeePeriod = 1; // 1: Monthly, 2: Quarterly, 3: Half-Yearly, 4: Annually
+  int _sinkingFundPeriod = 1;
+
+  bool _billsUpToDate = true;
+  bool _hasOutstandingCharges = false;
+
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  static const Map<int, String> _periodOptions = {
+    1: 'Monthly',
+    2: 'Quarterly',
+    3: 'Half-Yearly',
+    4: 'Annually',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingFinancials();
+  }
 
   @override
   void dispose() {
-    _sellingPriceController.dispose();
-    _monthlyRentController.dispose();
-    _advancePaymentController.dispose();
     _maintenanceFeeController.dispose();
-    _otherChargesController.dispose();
-    _financialNotesController.dispose();
+    _sinkingFundAmountController.dispose();
+    _outstandingAmountController.dispose();
+    _outstandingDescriptionController.dispose();
     super.dispose();
   }
 
-  Future<void> _continue() async {
-    FocusScope.of(context).unfocus();
+  Future<void> _loadExistingFinancials() async {
+    try {
+      final data =
+          await _sellerService.getPropertyFinancials(widget.propertyId);
+      if (data != null && mounted) {
+        setState(() {
+          if (data['maintenanceFee'] != null) {
+            _maintenanceFeeController.text =
+                data['maintenanceFee'].toString();
+          }
+          if (data['maintenanceFeePeriod'] != null) {
+            _maintenanceFeePeriod =
+                (data['maintenanceFeePeriod'] as num).toInt();
+          }
+          if (data['sinkingFundAmount'] != null) {
+            _sinkingFundAmountController.text =
+                data['sinkingFundAmount'].toString();
+          }
+          if (data['sinkingFundPeriod'] != null) {
+            _sinkingFundPeriod =
+                (data['sinkingFundPeriod'] as num).toInt();
+          }
+          if (data['billsUpToDate'] != null) {
+            _billsUpToDate = data['billsUpToDate'] == true;
+          }
+          if (data['hasOutstandingCharges'] != null) {
+            _hasOutstandingCharges =
+                data['hasOutstandingCharges'] == true;
+          }
+          if (data['outstandingAmount'] != null) {
+            _outstandingAmountController.text =
+                data['outstandingAmount'].toString();
+          }
+          if (data['outstandingDescription'] != null) {
+            _outstandingDescriptionController.text =
+                data['outstandingDescription'].toString();
+          }
+        });
+      }
+    } catch (_) {
+      // Non-blocking if financials do not exist yet
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveFinancials() async {
+    if (_isSaving) return;
 
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    final result = PropertyFinancialsResult(
-      featuresData: widget.featuresData,
-      sellingPrice: _sellingPriceController.text.trim(),
-      priceNegotiable: _priceNegotiable,
-      monthlyRent: _monthlyRentController.text.trim(),
-      advancePayment: _advancePaymentController.text.trim(),
-      maintenanceFee: _maintenanceFeeController.text.trim(),
-      otherCharges: _otherChargesController.text.trim(),
-      financialNotes: _financialNotesController.text.trim(),
-    );
+    setState(() {
+      _isSaving = true;
+    });
 
- final legalResult =
-    await Navigator.push<PropertyLegalDetailsResult>(
-  context,
-  MaterialPageRoute(
-    builder: (_) => PropertyLegalDetailsScreen(
-      financialData: result,
-    ),
-  ),
-);
+    try {
+      final maintenanceFee = _maintenanceFeeController.text.trim().isNotEmpty
+          ? double.tryParse(_maintenanceFeeController.text.trim())
+          : null;
+      final sinkingFundAmount =
+          _sinkingFundAmountController.text.trim().isNotEmpty
+              ? double.tryParse(_sinkingFundAmountController.text.trim())
+              : null;
+      final outstandingAmount = _hasOutstandingCharges &&
+              _outstandingAmountController.text.trim().isNotEmpty
+          ? double.tryParse(_outstandingAmountController.text.trim())
+          : null;
 
-if (legalResult != null && mounted) {
-  Navigator.pop(context, legalResult);
-}
+      final payload = <String, dynamic>{
+        'maintenanceFee': maintenanceFee,
+        'maintenanceFeePeriod':
+            maintenanceFee != null ? _maintenanceFeePeriod : null,
+        'sinkingFundAmount': sinkingFundAmount,
+        'sinkingFundPeriod':
+            sinkingFundAmount != null ? _sinkingFundPeriod : null,
+        'billsUpToDate': _billsUpToDate,
+        'hasOutstandingCharges': _hasOutstandingCharges,
+        'outstandingAmount':
+            _hasOutstandingCharges ? outstandingAmount : null,
+        'outstandingDescription': _hasOutstandingCharges &&
+                _outstandingDescriptionController.text.trim().isNotEmpty
+            ? _outstandingDescriptionController.text.trim()
+            : null,
+      };
+
+      await _sellerService.savePropertyFinancials(
+        widget.propertyId,
+        payload,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Property financials saved successfully!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Navigate to Step 5: Legal Details
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PropertyLegalDetailsScreen(
+            propertyId: widget.propertyId,
+            propertyType: widget.propertyType,
+          ),
+        ),
+      );
+
+      if (result == true && mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save financials: $e'),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final propertyType =
-        widget.featuresData.detailsData.locationData.propertyType;
+    final typeName = widget.propertyType ?? 'Property';
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'Financial Details',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-          ),
+          'Property Financials',
+          style: TextStyle(fontWeight: FontWeight.w600),
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
         elevation: 0,
+        foregroundColor: Colors.black87,
       ),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              _buildProgress(),
-
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(
-                    20,
-                    10,
-                    20,
-                    30,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-
-                      const Text(
-                        'Tell us about the financial details',
-                        style: TextStyle(
-                          fontSize: 25,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black87,
-                        ),
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        'Add the pricing and other financial information for your $propertyType.',
-                        style: TextStyle(
-                          fontSize: 15,
-                          height: 1.5,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      _buildSectionTitle(
-                        'Pricing',
-                        Icons.payments_outlined,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildTextField(
-                        controller: _sellingPriceController,
-                        label: 'Selling Price',
-                        hint: 'Enter selling price',
-                        prefixText: 'Rs. ',
-                        keyboardType: TextInputType.number,
-                        required: true,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Selling price is required';
-                          }
-
-                          final price = double.tryParse(
-                            value.replaceAll(',', '').trim(),
-                          );
-
-                          if (price == null || price <= 0) {
-                            return 'Enter a valid price';
-                          }
-
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildNegotiableCard(),
-
-                      const SizedBox(height: 24),
-
-                      _buildSectionTitle(
-                        'Additional Financial Information',
-                        Icons.account_balance_wallet_outlined,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildTextField(
-                        controller: _monthlyRentController,
-                        label: 'Monthly Rent',
-                        hint: 'Enter monthly rent if applicable',
-                        prefixText: 'Rs. ',
-                        keyboardType: TextInputType.number,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildTextField(
-                        controller: _advancePaymentController,
-                        label: 'Advance Payment',
-                        hint: 'Enter advance payment if applicable',
-                        prefixText: 'Rs. ',
-                        keyboardType: TextInputType.number,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildTextField(
-                        controller: _maintenanceFeeController,
-                        label: 'Maintenance Fee',
-                        hint: 'Enter maintenance fee if applicable',
-                        prefixText: 'Rs. ',
-                        keyboardType: TextInputType.number,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildTextField(
-                        controller: _otherChargesController,
-                        label: 'Other Charges',
-                        hint: 'Enter any other charges',
-                        prefixText: 'Rs. ',
-                        keyboardType: TextInputType.number,
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      _buildSectionTitle(
-                        'Notes',
-                        Icons.notes_outlined,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      _buildTextField(
-                        controller: _financialNotesController,
-                        label: 'Financial Notes',
-                        hint: 'Add any additional financial information',
-                        maxLines: 4,
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      _buildInfoCard(),
-
-                      const SizedBox(height: 25),
-
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: _continue,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: primaryColor),
+              )
+            : Column(
+                children: [
+                  _buildProgress(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Financial & Ongoing Dues',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                          child: const Text(
-                            'Next Step',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Specify recurring maintenance fees, sinking fund contributions, and outstanding utility bills.',
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.5,
+                                color: Colors.black54,
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 18),
+                            _buildPropertyTypeCard(typeName),
+                            const SizedBox(height: 24),
+
+                            // Maintenance Fee Section
+                            _buildSectionHeader(
+                              icon: Icons.cleaning_services_outlined,
+                              title: 'Maintenance Fee',
+                              subtitle:
+                                  'Recurring fee for common area upkeep and cleaning',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildAmountWithPeriodField(
+                              controller: _maintenanceFeeController,
+                              label: 'Maintenance Fee (LKR)',
+                              hint: 'e.g. 15000 (optional)',
+                              selectedPeriod: _maintenanceFeePeriod,
+                              onPeriodChanged: (val) {
+                                setState(() {
+                                  _maintenanceFeePeriod = val;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Sinking Fund Section
+                            _buildSectionHeader(
+                              icon: Icons.savings_outlined,
+                              title: 'Sinking Fund',
+                              subtitle:
+                                  'Reserve fund for major future repairs and capital improvements',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildAmountWithPeriodField(
+                              controller: _sinkingFundAmountController,
+                              label: 'Sinking Fund (LKR)',
+                              hint: 'e.g. 5000 (optional)',
+                              selectedPeriod: _sinkingFundPeriod,
+                              onPeriodChanged: (val) {
+                                setState(() {
+                                  _sinkingFundPeriod = val;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Bills Up-to-Date Switch
+                            _buildSectionHeader(
+                              icon: Icons.receipt_long_outlined,
+                              title: 'Utility & Municipal Dues',
+                              subtitle:
+                                  'Confirmation regarding utility status',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildBillsSwitchCard(),
+                            const SizedBox(height: 20),
+
+                            // Outstanding Charges Section
+                            _buildOutstandingSwitchCard(),
+                            if (_hasOutstandingCharges) ...[
+                              const SizedBox(height: 14),
+                              _buildOutstandingForm(),
+                            ],
+
+                            const SizedBox(height: 24),
+                            _buildInfoCard(),
+                          ],
                         ),
                       ),
-
-                      const SizedBox(height: 10),
-                    ],
+                    ),
                   ),
-                ),
+                  _buildBottomButton(),
+                ],
               ),
-            ],
-          ),
-        ),
       ),
     );
   }
 
   Widget _buildProgress() {
-    final steps = [
-      'Type',
-      'Basic',
-      'Location',
-      'Details',
-      'Features',
-      'Financial',
-    ];
-
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Row(
-        children: List.generate(
-          steps.length,
-          (index) {
-            final isActive = index == 5;
-            final isCompleted = index < 5;
-
-            return Expanded(
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      if (index > 0)
-                        Expanded(
-                          child: Container(
-                            height: 2,
-                            color: isCompleted
-                                ? primaryColor
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isActive || isCompleted
-                              ? primaryColor
-                              : Colors.grey.shade200,
-                        ),
-                        child: Center(
-                          child: isCompleted
-                              ? const Icon(
-                                  Icons.check,
-                                  size: 16,
-                                  color: Colors.white,
-                                )
-                              : Text(
-                                  '${index + 1}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: isActive
-                                        ? Colors.white
-                                        : Colors.grey.shade600,
-                                  ),
-                                ),
-                        ),
-                      ),
-
-                      if (index < steps.length - 1)
-                        Expanded(
-                          child: Container(
-                            height: 2,
-                            color: index < 5
-                                ? primaryColor
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  Text(
-                    steps[index],
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: isActive
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: isActive
-                          ? primaryColor
-                          : Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+        children: [
+          _buildStepItem(number: '1', title: 'Basic', isCompleted: true, isActive: false),
+          _buildStepLine(true),
+          _buildStepItem(number: '2', title: 'Features', isCompleted: true, isActive: false),
+          _buildStepLine(true),
+          _buildStepItem(number: '3', title: 'Amenities', isCompleted: true, isActive: false),
+          _buildStepLine(true),
+          _buildStepItem(number: '4', title: 'Financials', isCompleted: false, isActive: true),
+          _buildStepLine(false),
+          _buildStepItem(number: '5', title: 'Legal', isCompleted: false, isActive: false),
+          _buildStepLine(false),
+          _buildStepItem(number: '6', title: 'Media', isCompleted: false, isActive: false),
+        ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(
-    String title,
-    IconData icon,
-  ) {
-    return Row(
+  Widget _buildStepLine(bool isCompleted) {
+    return Expanded(
+      child: Container(
+        height: 2,
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        color: isCompleted ? primaryColor : const Color(0xFFE5E7EB),
+      ),
+    );
+  }
+
+  Widget _buildStepItem({
+    required String number,
+    required String title,
+    required bool isCompleted,
+    required bool isActive,
+  }) {
+    return Column(
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 24,
+          height: 24,
           decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(10),
+            shape: BoxShape.circle,
+            color: isActive || isCompleted ? primaryColor : Colors.grey.shade300,
           ),
-          child: Icon(
-            icon,
-            color: primaryColor,
-            size: 21,
+          child: Center(
+            child: isCompleted
+                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                : Text(
+                    number,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isActive ? Colors.white : Colors.black45,
+                    ),
+                  ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(height: 3),
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight:
+                isActive || isCompleted ? FontWeight.w700 : FontWeight.w500,
+            color: isActive ? primaryColor : Colors.black87,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTextField({
+
+  Widget _buildPropertyTypeCard(String propertyType) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: primaryColor.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.20),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_outlined,
+              color: primaryColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Property ID: ${widget.propertyId.length > 12 ? '${widget.propertyId.substring(0, 12)}...' : widget.propertyId}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  propertyType,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: primaryColor.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: primaryColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.black54,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmountWithPeriodField({
     required TextEditingController controller,
     required String label,
     required String hint,
-    String? prefixText,
-    TextInputType? keyboardType,
-    int maxLines = 1,
-    bool required = false,
-    String? Function(String?)? validator,
+    required int selectedPeriod,
+    required ValueChanged<int> onPeriodChanged,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixText: prefixText,
-        alignLabelWithHint: maxLines > 1,
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 15,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: BorderSide(
-            color: Colors.grey.shade300,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+            ],
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              prefixIcon: const Icon(
+                Icons.payments_outlined,
+                color: primaryColor,
+                size: 20,
+              ),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: primaryColor, width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Billing Frequency',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: _periodOptions.entries.map((entry) {
+              final isSelected = entry.key == selectedPeriod;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: InkWell(
+                    onTap: () => onPeriodChanged(entry.key),
+                    borderRadius: BorderRadius.circular(8),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? primaryColor : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color:
+                              isSelected ? primaryColor : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          entry.value,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: isSelected ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBillsSwitchCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: SwitchListTile(
+        value: _billsUpToDate,
+        onChanged: (val) {
+          setState(() {
+            _billsUpToDate = val;
+          });
+        },
+        activeThumbColor: primaryColor,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        title: const Text(
+          'Utility Bills Up-to-Date',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: BorderSide(
-            color: Colors.grey.shade300,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(
-            color: primaryColor,
-            width: 1.5,
-          ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(
-            color: Colors.red,
-          ),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(
-            color: Colors.red,
-            width: 1.5,
-          ),
+        subtitle: const Text(
+          'Electricity, water, and municipal assessment taxes are fully settled.',
+          style: TextStyle(fontSize: 12, color: Colors.black54),
         ),
       ),
     );
   }
 
-  Widget _buildNegotiableCard() {
+  Widget _buildOutstandingSwitchCard() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: _hasOutstandingCharges
+              ? Colors.orange.shade300
+              : Colors.grey.shade200,
         ),
       ),
       child: SwitchListTile(
-        value: _priceNegotiable,
-        onChanged: (value) {
+        value: _hasOutstandingCharges,
+        onChanged: (val) {
           setState(() {
-            _priceNegotiable = value;
+            _hasOutstandingCharges = val;
+            if (!val) {
+              _outstandingAmountController.clear();
+              _outstandingDescriptionController.clear();
+            }
           });
         },
-        activeColor: primaryColor,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 3,
-        ),
+        activeThumbColor: Colors.orange.shade700,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         title: const Text(
-          'Price is negotiable',
+          'Has Outstanding Charges',
           style: TextStyle(
-            fontWeight: FontWeight.w600,
             fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
         ),
-        subtitle: Text(
-          'Allow potential buyers to negotiate the listed price.',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-          ),
+        subtitle: const Text(
+          'Turn on if there are any pending maintenance or legal arrears.',
+          style: TextStyle(fontSize: 12, color: Colors.black54),
         ),
+      ),
+    );
+  }
+
+  Widget _buildOutstandingForm() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  color: Colors.orange.shade800, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Outstanding Dues Details',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.orange.shade900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _outstandingAmountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+            ],
+            validator: (value) {
+              if (_hasOutstandingCharges &&
+                  (value == null || value.trim().isEmpty)) {
+                return 'Please enter the outstanding amount';
+              }
+              return null;
+            },
+            decoration: InputDecoration(
+              labelText: 'Outstanding Amount (LKR) *',
+              hintText: 'e.g. 45000',
+              prefixIcon: Icon(
+                Icons.money_off_outlined,
+                color: Colors.orange.shade700,
+                size: 20,
+              ),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.orange.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.orange.shade700, width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _outstandingDescriptionController,
+            maxLines: 2,
+            decoration: InputDecoration(
+              labelText: 'Description / Notes',
+              hintText: 'e.g. Unpaid condo maintenance for August & September',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.orange.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.orange.shade700, width: 1.5),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildInfoCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: primaryColor.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: primaryColor.withOpacity(0.15),
-        ),
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
+      child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.info_outline,
-            color: primaryColor,
-            size: 21,
-          ),
-          const SizedBox(width: 10),
+          Icon(Icons.info_outline, color: primaryColor, size: 21),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
-              'You can review and update your property information before submitting the listing.',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.45,
-                color: Colors.grey.shade700,
-              ),
+              'Accurate financial disclosure ensures transparency, increases trust with prospective buyers, and accelerates deal closing.',
+              style: TextStyle(fontSize: 13, height: 1.5, color: Colors.black54),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBottomButton() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: ElevatedButton(
+          onPressed: _isSaving ? null : _saveFinancials,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryColor,
+            disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          child: _isSaving
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Next: Legal Details',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.arrow_forward, size: 20),
+                  ],
+                ),
+        ),
       ),
     );
   }

@@ -1,162 +1,132 @@
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
-import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_amenities_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_financials_screen.dart';
 
-class PropertyFeaturesScreen extends StatefulWidget {
+class PropertyAmenitiesScreen extends StatefulWidget {
   final String propertyId;
   final String? propertyType;
 
-  const PropertyFeaturesScreen({
+  const PropertyAmenitiesScreen({
     super.key,
     required this.propertyId,
     this.propertyType,
   });
 
   @override
-  State<PropertyFeaturesScreen> createState() => _PropertyFeaturesScreenState();
+  State<PropertyAmenitiesScreen> createState() => _PropertyAmenitiesScreenState();
 }
 
-class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
+class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
   static const Color primaryColor = Color(0xFF00C6D4);
 
   final SellerService _sellerService = SellerService();
-  final Set<int> _selectedFeatureIds = {};
+  final Set<int> _selectedAmenityIds = {};
   String _selectedCategory = 'All';
   bool _isSaving = false;
 
-  final List<Map<String, dynamic>> _features = const [
+  final List<Map<String, dynamic>> _amenities = const [
     {
       'id': 1,
       'name': 'Swimming Pool',
       'icon': Icons.pool_outlined,
-      'category': 'Outdoors',
+      'category': 'Leisure',
     },
     {
       'id': 2,
-      'name': 'Garden',
-      'icon': Icons.yard_outlined,
-      'category': 'Outdoors',
-    },
-    {
-      'id': 3,
-      'name': 'Balcony',
-      'icon': Icons.balcony_outlined,
-      'category': 'General',
-    },
-    {
-      'id': 4,
-      'name': 'Parking',
-      'icon': Icons.local_parking_outlined,
-      'category': 'General',
-    },
-    {
-      'id': 5,
-      'name': 'Security',
-      'icon': Icons.security_outlined,
-      'category': 'Safety',
-    },
-    {
-      'id': 6,
-      'name': 'CCTV',
-      'icon': Icons.videocam_outlined,
-      'category': 'Safety',
-    },
-    {
-      'id': 7,
-      'name': 'Air Conditioning',
-      'icon': Icons.ac_unit_outlined,
-      'category': 'Comfort',
-    },
-    {
-      'id': 8,
-      'name': 'Elevator',
-      'icon': Icons.elevator_outlined,
-      'category': 'Building',
-    },
-    {
-      'id': 9,
-      'name': 'Generator',
-      'icon': Icons.electrical_services_outlined,
-      'category': 'Utilities',
-    },
-    {
-      'id': 10,
       'name': 'Gym',
       'icon': Icons.fitness_center_outlined,
       'category': 'Fitness',
     },
     {
-      'id': 11,
+      'id': 3,
+      'name': '24/7 Security',
+      'icon': Icons.shield_outlined,
+      'category': 'Safety',
+    },
+    {
+      'id': 4,
       'name': 'Clubhouse',
-      'icon': Icons.meeting_room_outlined,
+      'icon': Icons.diversity_3_outlined,
       'category': 'Community',
     },
     {
-      'id': 12,
-      'name': 'Playground',
+      'id': 5,
+      'name': 'Covered Parking',
+      'icon': Icons.garage_outlined,
+      'category': 'Parking',
+    },
+    {
+      'id': 6,
+      'name': 'Visitor Parking',
+      'icon': Icons.local_parking_outlined,
+      'category': 'Parking',
+    },
+    {
+      'id': 7,
+      'name': 'Play Area',
       'icon': Icons.park_outlined,
       'category': 'Community',
     },
     {
-      'id': 13,
+      'id': 8,
+      'name': 'Power Backup',
+      'icon': Icons.bolt_outlined,
+      'category': 'Utilities',
+    },
+    {
+      'id': 9,
+      'name': 'Elevator',
+      'icon': Icons.elevator_outlined,
+      'category': 'Building',
+    },
+    {
+      'id': 10,
+      'name': 'CCTV Surveillance',
+      'icon': Icons.videocam_outlined,
+      'category': 'Safety',
+    },
+    {
+      'id': 11,
       'name': 'Rooftop Terrace',
       'icon': Icons.deck_outlined,
-      'category': 'Outdoors',
+      'category': 'Leisure',
     },
     {
-      'id': 14,
-      'name': 'Water Tank',
-      'icon': Icons.water_drop_outlined,
-      'category': 'Utilities',
-    },
-    {
-      'id': 15,
-      'name': 'Solar Power',
-      'icon': Icons.solar_power_outlined,
-      'category': 'Utilities',
-    },
-    {
-      'id': 16,
-      'name': 'Road Access',
-      'icon': Icons.add_road_outlined,
-      'category': 'General',
-    },
-    {
-      'id': 17,
-      'name': 'Fenced',
-      'icon': Icons.fence_outlined,
-      'category': 'Safety',
+      'id': 12,
+      'name': 'Garden',
+      'icon': Icons.yard_outlined,
+      'category': 'Leisure',
     },
   ];
 
   List<String> get _categories {
     final set = <String>{'All'};
-    for (final f in _features) {
-      final cat = f['category'] as String?;
+    for (final a in _amenities) {
+      final cat = a['category'] as String?;
       if (cat != null) set.add(cat);
     }
     return set.toList();
   }
 
-  List<Map<String, dynamic>> get _filteredFeatures {
-    if (_selectedCategory == 'All') return _features;
-    return _features
-        .where((f) => f['category'] == _selectedCategory)
+  List<Map<String, dynamic>> get _filteredAmenities {
+    if (_selectedCategory == 'All') return _amenities;
+    return _amenities
+        .where((a) => a['category'] == _selectedCategory)
         .toList();
   }
 
-  void _toggleFeature(int id) {
+  void _toggleAmenity(int id) {
     if (_isSaving) return;
     setState(() {
-      if (_selectedFeatureIds.contains(id)) {
-        _selectedFeatureIds.remove(id);
+      if (_selectedAmenityIds.contains(id)) {
+        _selectedAmenityIds.remove(id);
       } else {
-        _selectedFeatureIds.add(id);
+        _selectedAmenityIds.add(id);
       }
     });
   }
 
-  Future<void> _saveFeaturesAndProceed() async {
+  Future<void> _saveAmenities() async {
     if (_isSaving) return;
 
     setState(() {
@@ -164,24 +134,20 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
     });
 
     try {
-      if (_selectedFeatureIds.isNotEmpty) {
-        await _sellerService.addPropertyFeatures(
+      if (_selectedAmenityIds.isNotEmpty) {
+        await _sellerService.addPropertyAmenities(
           widget.propertyId,
-          _selectedFeatureIds.toList(),
+          _selectedAmenityIds.toList(),
         );
       }
 
       if (!mounted) return;
 
-      setState(() {
-        _isSaving = false;
-      });
-
-      if (_selectedFeatureIds.isNotEmpty) {
+      if (_selectedAmenityIds.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Features (${_selectedFeatureIds.length}) saved successfully!',
+              'Amenities (${_selectedAmenityIds.length}) saved successfully!',
             ),
             backgroundColor: Colors.green.shade600,
             duration: const Duration(seconds: 2),
@@ -189,11 +155,11 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
         );
       }
 
-      // Navigate to Amenities Screen (Step 3)
+      // Navigate to Step 4: Financials
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => PropertyAmenitiesScreen(
+          builder: (context) => PropertyFinancialsScreen(
             propertyId: widget.propertyId,
             propertyType: widget.propertyType,
           ),
@@ -211,7 +177,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save features: $e'),
+          content: Text('Failed to save amenities: $e'),
           backgroundColor: Colors.red.shade700,
           duration: const Duration(seconds: 4),
         ),
@@ -227,7 +193,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'Property Features',
+          'Property Amenities',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         centerTitle: false,
@@ -247,7 +213,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                   children: [
                     const SizedBox(height: 8),
                     const Text(
-                      'What does your property offer?',
+                      'What amenities are available?',
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
@@ -256,7 +222,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Select the private features available with your property.',
+                      'Select the shared and community amenities available for this property.',
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.5,
@@ -272,14 +238,14 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Features',
+                          'Available Amenities',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: Colors.black87,
                           ),
                         ),
-                        if (_selectedFeatureIds.isNotEmpty)
+                        if (_selectedAmenityIds.isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
@@ -290,7 +256,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              '${_selectedFeatureIds.length} selected',
+                              '${_selectedAmenityIds.length} selected',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -301,7 +267,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _buildFeatureGrid(),
+                    _buildAmenityGrid(),
                     const SizedBox(height: 24),
                     _buildInfoCard(),
                   ],
@@ -322,9 +288,9 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
         children: [
           _buildStepItem(number: '1', title: 'Basic', isCompleted: true, isActive: false),
           _buildStepLine(true),
-          _buildStepItem(number: '2', title: 'Features', isCompleted: false, isActive: true),
-          _buildStepLine(false),
-          _buildStepItem(number: '3', title: 'Amenities', isCompleted: false, isActive: false),
+          _buildStepItem(number: '2', title: 'Features', isCompleted: true, isActive: false),
+          _buildStepLine(true),
+          _buildStepItem(number: '3', title: 'Amenities', isCompleted: false, isActive: true),
           _buildStepLine(false),
           _buildStepItem(number: '4', title: 'Financials', isCompleted: false, isActive: false),
           _buildStepLine(false),
@@ -410,7 +376,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
-              Icons.home_work_outlined,
+              Icons.domain_outlined,
               color: primaryColor,
             ),
           ),
@@ -488,8 +454,8 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
     );
   }
 
-  Widget _buildFeatureGrid() {
-    final list = _filteredFeatures;
+  Widget _buildAmenityGrid() {
+    final list = _filteredAmenities;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -502,14 +468,14 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
         childAspectRatio: 1.55,
       ),
       itemBuilder: (context, index) {
-        final feature = list[index];
-        final id = feature['id'] as int;
-        final name = feature['name'] as String;
-        final icon = feature['icon'] as IconData;
-        final isSelected = _selectedFeatureIds.contains(id);
+        final amenity = list[index];
+        final id = amenity['id'] as int;
+        final name = amenity['name'] as String;
+        final icon = amenity['icon'] as IconData;
+        final isSelected = _selectedAmenityIds.contains(id);
 
         return InkWell(
-          onTap: () => _toggleFeature(id),
+          onTap: () => _toggleAmenity(id),
           borderRadius: BorderRadius.circular(16),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -563,10 +529,10 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                           color: Colors.black87,
                         ),
                       ),
-                      if (feature['category'] != null) ...[
+                      if (amenity['category'] != null) ...[
                         const SizedBox(height: 2),
                         Text(
-                          feature['category'] as String,
+                          amenity['category'] as String,
                           style: TextStyle(
                             fontSize: 10,
                             color: Colors.grey.shade500,
@@ -606,7 +572,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'You can select multiple features. These details will help buyers understand what your property offers.',
+              'Select all amenities that apply. These will be highlighted on your listing to attract potential buyers and tenants.',
               style: TextStyle(fontSize: 13, height: 1.5, color: Colors.black54),
             ),
           ),
@@ -616,10 +582,10 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
   }
 
   Widget _buildBottomButton() {
-    final count = _selectedFeatureIds.length;
+    final count = _selectedAmenityIds.length;
     final buttonText = count > 0
-        ? 'Next: Amenities ($count)'
-        : 'Next: Amenities';
+        ? 'Next: Financials ($count)'
+        : 'Next: Financials';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
@@ -637,7 +603,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
         width: double.infinity,
         height: 54,
         child: ElevatedButton(
-          onPressed: _isSaving ? null : _saveFeaturesAndProceed,
+          onPressed: _isSaving ? null : _saveAmenities,
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryColor,
             disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),

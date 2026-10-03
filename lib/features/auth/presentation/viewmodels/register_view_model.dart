@@ -6,12 +6,11 @@ import '../../../../data/repositories/auth_repository.dart';
 
 class RegisterViewModel extends ChangeNotifier {
   final AuthRepository _authRepository;
-  final SecureStorageService _secureStorage;
 
   RegisterViewModel(
-    this._authRepository,
-    this._secureStorage,
-  );
+    this._authRepository, [
+    SecureStorageService? secureStorage,
+  ]);
 
   bool _isLoading = false;
   String? _errorMessage;

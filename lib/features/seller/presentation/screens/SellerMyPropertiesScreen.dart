@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/core/constants/api_constants.dart';
 import 'package:zogo_realtor/core/storage/secure_storage_service.dart';
-import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_type_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_basic_screen.dart';
 
 
 /// Seller "My Properties" screen.
@@ -147,27 +147,21 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
     return;
   }
 
-  final selectedType = await Navigator.push<String>(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const PropertyTypeScreen(),
-    ),
-  );
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PropertyBasicScreen(),
+      ),
+    );
 
-  if (!mounted) {
-    return;
+    if (!mounted) {
+      return;
+    }
+
+    if (result == true) {
+      _loadProperties();
+    }
   }
-
-  if (selectedType == null) {
-    return;
-  }
-
-  debugPrint(
-    'Selected property type: $selectedType',
-  );
-
-  // Next step will open the property details screen.
-}
 
   /// Reads a value from a property map, ignoring key casing.
   String _read(
