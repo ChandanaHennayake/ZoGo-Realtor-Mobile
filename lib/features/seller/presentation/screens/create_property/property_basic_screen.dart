@@ -3,7 +3,14 @@ import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_features_screen.dart';
 
 class PropertyBasicScreen extends StatefulWidget {
-  const PropertyBasicScreen({super.key});
+  final String? propertyId;
+  final Map<String, dynamic>? initialData;
+
+  const PropertyBasicScreen({
+    super.key,
+    this.propertyId,
+    this.initialData,
+  });
 
   @override
   State<PropertyBasicScreen> createState() => _PropertyBasicScreenState();
@@ -109,6 +116,64 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.initialData != null) {
+      _populateFromData(widget.initialData!);
+    } else if (widget.propertyId != null && widget.propertyId!.isNotEmpty) {
+      _loadProperty();
+    }
+  }
+
+  void _populateFromData(Map<String, dynamic> data) {
+    if (data['propertyTypeId'] != null) {
+      _selectedPropertyTypeId = (data['propertyTypeId'] as num).toInt();
+    }
+    if (data['listingTypeId'] != null) {
+      _selectedListingTypeId = (data['listingTypeId'] as num).toInt();
+    }
+    _titleController.text = data['title']?.toString() ?? '';
+    _descriptionController.text = data['description']?.toString() ?? '';
+    _referenceNoController.text = data['referenceNo']?.toString() ?? '';
+    if (data['askingPrice'] != null) {
+      _askingPriceController.text = data['askingPrice'].toString();
+    }
+    if (data['isNegotiable'] != null) {
+      _isNegotiable = data['isNegotiable'] == true;
+    }
+    if (data['provinceId'] != null) {
+      _selectedProvinceId = (data['provinceId'] as num).toInt();
+    }
+    if (data['districtId'] != null) {
+      _selectedDistrictId = (data['districtId'] as num).toInt();
+    }
+    _cityController.text = data['city']?.toString() ?? '';
+    if (data['cityId'] != null) {
+      _cityIdController.text = data['cityId'].toString();
+    }
+    _addressLine1Controller.text = data['addressLine1']?.toString() ?? '';
+    _addressLine2Controller.text = data['addressLine2']?.toString() ?? '';
+    _postalCodeController.text = data['postalCode']?.toString() ?? '';
+    if (data['latitude'] != null) {
+      _latitudeController.text = data['latitude'].toString();
+    }
+    if (data['longitude'] != null) {
+      _longitudeController.text = data['longitude'].toString();
+    }
+  }
+
+  Future<void> _loadProperty() async {
+    try {
+      final data = await _sellerService.getPropertyById(widget.propertyId!);
+      if (mounted) {
+        setState(() {
+          _populateFromData(data);
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
@@ -190,7 +255,29 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
     });
 
     try {
-      final response = await _sellerService.createProperty(payload);
+      String propertyId;
+
+      if (widget.propertyId != null && widget.propertyId!.isNotEmpty) {
+        await _sellerService.updateProperty(widget.propertyId!, payload);
+        propertyId = widget.propertyId!;
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Property basic details updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final response = await _sellerService.createProperty(payload);
+        propertyId = response['propertyId']?.toString() ?? '';
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Property basic details saved successfully! ID: $propertyId'),
+            backgroundColor: Colors.green.shade600,
+          ),
+        );
+      }
 
       if (!mounted) return;
 
@@ -198,17 +285,8 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
         _isSubmitting = false;
       });
 
-      final propertyId = response['propertyId']?.toString() ?? '';
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Property basic details saved successfully! ID: $propertyId'),
-          backgroundColor: Colors.green.shade600,
-        ),
-      );
-
       // Navigate to the next page: Property Features screen
-      await Navigator.push(
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PropertyFeaturesScreen(
@@ -218,7 +296,7 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
         ),
       );
 
-      if (mounted) {
+      if (result == true && mounted) {
         Navigator.pop(context, true);
       }
     } catch (e) {
@@ -231,6 +309,7 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error saving property: $e'),
+
           backgroundColor: Colors.red.shade700,
           duration: const Duration(seconds: 4),
         ),

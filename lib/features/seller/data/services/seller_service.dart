@@ -849,6 +849,120 @@ class SellerService {
       );
     }
   }
+
+  // ============================================================
+  // PROPERTY GET BY ID, PUBLISH & UPDATE
+  // ============================================================
+
+  Future<Map<String, dynamic>> getPropertyById(String propertyId) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final url = '/api/v1/properties/$propertyId';
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        if (response.data is Map<String, dynamic>) {
+          return response.data as Map<String, dynamic>;
+        } else if (response.data is Map) {
+          return Map<String, dynamic>.from(response.data as Map);
+        }
+      }
+
+      throw Exception(
+        _parseErrorMessage(
+          response.data,
+          response.statusCode,
+          'Failed to load property details',
+        ),
+      );
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Failed to load property details: ${e.message}',
+        ),
+      );
+    }
+  }
+
+  Future<bool> publishProperty(String propertyId) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final url = '/api/v1/properties/$propertyId/publish';
+      final response = await _dio.post(
+        url,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Failed to publish property: ${e.message}',
+        ),
+      );
+    }
+  }
+
+  Future<bool> updateProperty(
+    String propertyId,
+    Map<String, dynamic> propertyData,
+  ) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final url = '/api/v1/properties/$propertyId';
+      final response = await _dio.put(
+        url,
+        data: propertyData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Failed to update property: ${e.message}',
+        ),
+      );
+    }
+  }
 }
+
 
 

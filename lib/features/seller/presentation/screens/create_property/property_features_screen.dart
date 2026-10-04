@@ -24,6 +24,27 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
   String _selectedCategory = 'All';
   bool _isSaving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingFeatures();
+  }
+
+  Future<void> _loadExistingFeatures() async {
+    try {
+      final list = await _sellerService.getPropertyFeatures(widget.propertyId);
+      if (!mounted) return;
+      setState(() {
+        for (final item in list) {
+          final id = (item['featureId'] ?? item['FeatureId'] ?? item['id']) as num?;
+          if (id != null) {
+            _selectedFeatureIds.add(id.toInt());
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
   final List<Map<String, dynamic>> _features = const [
     {
       'id': 1,

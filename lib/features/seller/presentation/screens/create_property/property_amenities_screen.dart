@@ -24,6 +24,27 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
   String _selectedCategory = 'All';
   bool _isSaving = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingAmenities();
+  }
+
+  Future<void> _loadExistingAmenities() async {
+    try {
+      final list = await _sellerService.getPropertyAmenities(widget.propertyId);
+      if (!mounted) return;
+      setState(() {
+        for (final item in list) {
+          final id = (item['amenityId'] ?? item['AmenityId'] ?? item['id']) as num?;
+          if (id != null) {
+            _selectedAmenityIds.add(id.toInt());
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
   final List<Map<String, dynamic>> _amenities = const [
     {
       'id': 1,

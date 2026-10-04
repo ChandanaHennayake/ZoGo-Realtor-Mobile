@@ -2,7 +2,14 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/core/constants/api_constants.dart';
 import 'package:zogo_realtor/core/storage/secure_storage_service.dart';
+import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_amenities_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_basic_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_features_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_financials_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_legal_details_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_media_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/seller_property_details_screen.dart';
 
 
 /// Seller "My Properties" screen.
@@ -31,6 +38,7 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
 
   late final Dio _dio;
   final SecureStorageService _secureStorage = SecureStorageService();
+  final SellerService _sellerService = SellerService();
 
   bool _isLoading = true;
   String? _error;
@@ -183,6 +191,363 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
     return fallback;
   }
 
+  bool _isPropertyDraft(Map<String, dynamic> property) {
+    final rawStatus = property['status'] ?? property['propertyStatus'] ?? property['listingStatus'];
+    if (rawStatus == null) return true;
+    if (rawStatus == 1 || rawStatus == '1' || rawStatus.toString().toLowerCase() == 'draft') {
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _openPropertyDetails(Map<String, dynamic> property) async {
+    final propertyId = _read(property, ['propertyId', 'id']);
+    if (propertyId.isEmpty) return;
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SellerPropertyDetailsScreen(
+          propertyId: propertyId,
+          initialData: property,
+        ),
+      ),
+    );
+
+    if (result == true || mounted) {
+      _loadProperties();
+    }
+  }
+
+  Future<void> _publishDraftProperty(String propertyId) async {
+    try {
+      final success = await _sellerService.publishProperty(propertyId);
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Property published successfully and is now live!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadProperties();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to publish property: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  void _showDraftActionsSheet(Map<String, dynamic> property) {
+    final propertyId = _read(property, ['propertyId', 'id']);
+    final title = _read(property, ['title', 'propertyTitle', 'name'], fallback: 'Draft Property');
+    final typeId = (property['propertyTypeId'] as num?)?.toInt() ?? 1;
+    const propertyTypes = {
+      1: 'House',
+      2: 'Apartment',
+      3: 'Land',
+      4: 'Commercial',
+    };
+    final typeName = propertyTypes[typeId] ?? 'Property';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.amber.shade400),
+                  ),
+                  child: Text(
+                    'DRAFT',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.amber.shade900,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Select any section below to start editing or resume your draft:',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 16),
+            _buildSectionTile(
+              stepNumber: 1,
+              title: 'Basic Details',
+              subtitle: 'Type, title, location, and asking price',
+              icon: Icons.edit_note_outlined,
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PropertyBasicScreen(
+                      propertyId: propertyId,
+                      initialData: property,
+                    ),
+                  ),
+                );
+                if (res == true || mounted) _loadProperties();
+              },
+            ),
+            _buildSectionTile(
+              stepNumber: 2,
+              title: 'Property Features',
+              subtitle: 'Pool, garden, balcony, parking, etc.',
+              icon: Icons.star_outline_rounded,
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PropertyFeaturesScreen(
+                      propertyId: propertyId,
+                      propertyType: typeName,
+                    ),
+                  ),
+                );
+                if (res == true || mounted) _loadProperties();
+              },
+            ),
+            _buildSectionTile(
+              stepNumber: 3,
+              title: 'Property Amenities',
+              subtitle: 'Security, clubhouse, elevator, generator, etc.',
+              icon: Icons.pool_outlined,
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PropertyAmenitiesScreen(
+                      propertyId: propertyId,
+                      propertyType: typeName,
+                    ),
+                  ),
+                );
+                if (res == true || mounted) _loadProperties();
+              },
+            ),
+            _buildSectionTile(
+              stepNumber: 4,
+              title: 'Financials & Charges',
+              subtitle: 'Maintenance, sinking fund, bills status',
+              icon: Icons.payments_outlined,
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PropertyFinancialsScreen(
+                      propertyId: propertyId,
+                      propertyType: typeName,
+                    ),
+                  ),
+                );
+                if (res == true || mounted) _loadProperties();
+              },
+            ),
+            _buildSectionTile(
+              stepNumber: 5,
+              title: 'Legal Details',
+              subtitle: 'Ownership type, mortgage, legal verification',
+              icon: Icons.gavel_outlined,
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PropertyLegalDetailsScreen(
+                      propertyId: propertyId,
+                      propertyType: typeName,
+                    ),
+                  ),
+                );
+                if (res == true || mounted) _loadProperties();
+              },
+            ),
+            _buildSectionTile(
+              stepNumber: 6,
+              title: 'Photos & Media',
+              subtitle: 'Images and videos (10MB limit per file)',
+              icon: Icons.photo_library_outlined,
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PropertyMediaScreen(
+                      propertyId: propertyId,
+                      propertyType: typeName,
+                    ),
+                  ),
+                );
+                if (res == true || mounted) _loadProperties();
+              },
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _openPropertyDetails(property);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: const BorderSide(color: primaryCyan),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'View Preview',
+                      style: TextStyle(
+                        color: primaryCyan,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _publishDraftProperty(propertyId);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: primaryCyan,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Publish Now',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTile({
+    required int stepNumber,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: primaryCyan.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  '$stepNumber',
+                  style: const TextStyle(
+                    color: primaryCyan,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ============================================================
   // BUILD
   // ============================================================
@@ -319,7 +684,7 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
       itemCount: _properties.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final property = _properties[index];
 
@@ -335,98 +700,140 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
           fallback: '—',
         );
 
-        final status = _read(
-          property,
-          ['status', 'propertyStatus', 'listingStatus'],
-          fallback: 'Draft',
-        );
+        final isDraft = _isPropertyDraft(property);
+        final status = isDraft ? 'Draft' : 'Published';
 
         final price = _read(
           property,
           ['price', 'askingPrice', 'amount'],
         );
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
+        return Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
             borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: primaryCyan.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.apartment_outlined,
-                  color: primaryCyan,
-                ),
-              ),
-
-              const SizedBox(width: 14),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
-                      ),
+            onTap: () {
+              if (isDraft) {
+                _showDraftActionsSheet(property);
+              } else {
+                _openPropertyDetails(property);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: primaryCyan.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      location,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF6B7280),
-                      ),
+                    child: const Icon(
+                      Icons.apartment_outlined,
+                      color: primaryCyan,
                     ),
-                    if (price.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        price,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A1A),
+                  ),
+
+                  const SizedBox(width: 14),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1A1A1A),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          location,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                        if (price.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            price,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDraft
+                              ? Colors.amber.shade50
+                              : Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isDraft
+                                ? Colors.amber.shade300
+                                : Colors.green.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isDraft ? Icons.edit_note : Icons.check_circle,
+                              size: 14,
+                              color: isDraft
+                                  ? Colors.amber.shade800
+                                  : Colors.green.shade700,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              status,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isDraft
+                                    ? Colors.amber.shade900
+                                    : Colors.green.shade800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: Colors.grey,
+                      ),
                     ],
-                  ],
-                ),
-              ),
-
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F3F5),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  status,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF6B7280),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
     );
   }
-}
+}
