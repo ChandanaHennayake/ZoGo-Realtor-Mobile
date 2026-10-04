@@ -962,7 +962,81 @@ class SellerService {
       );
     }
   }
+
+  // ============================================================
+  // COMMON SERVICE (PROVINCES, DISTRICTS, CITIES)
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> getProvinces() async {
+    try {
+      final response = await _dio.get('/api/v1/common/provinces');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET PROVINCES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDistricts({int? provinceId}) async {
+    try {
+      final response = await _dio.get(
+        '/api/v1/common/districts',
+        queryParameters: provinceId != null ? {'provinceId': provinceId} : null,
+      );
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET DISTRICTS ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCitiesByDistrict(int districtId) async {
+    try {
+      final response = await _dio.get('/api/v1/common/districts/$districtId/cities');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET CITIES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCitiesByProvince(int provinceId) async {
+    try {
+      final districts = await getDistricts(provinceId: provinceId);
+      final List<Map<String, dynamic>> allCities = [];
+      for (final d in districts) {
+        final dId = (d['id'] as num?)?.toInt();
+        if (dId != null) {
+          final cities = await getCitiesByDistrict(dId);
+          allCities.addAll(cities);
+        }
+      }
+      return allCities;
+    } catch (e) {
+      debugPrint('GET CITIES BY PROVINCE ERROR: $e');
+      return [];
+    }
+  }
 }
+
 
 
 

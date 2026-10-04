@@ -1,8 +1,11 @@
 import 'dart:async';
-
-
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:zogo_realtor/core/constants/api_constants.dart';
+import 'package:zogo_realtor/core/storage/secure_storage_service.dart';
 import 'package:zogo_realtor/features/auth/presentation/screens/get_started_screen.dart';
+import 'package:zogo_realtor/features/home/presentation/screens/home_screen.dart';
+import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,22 +15,71 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final SecureStorageService _secureStorage = SecureStorageService();
+
   @override
   void initState() {
     super.initState();
+    _checkAuthAndNavigate();
+  }
 
-    Timer(
-      const Duration(seconds: 3),
-      () {
+  Future<void> _checkAuthAndNavigate() async {
+    await Future.delayed(const Duration(milliseconds: 1800));
+    if (!mounted) return;
+
+    try {
+      final isLoggedIn = await _secureStorage.isLoggedIn();
+      if (isLoggedIn && mounted) {
+        final roles = await _secureStorage.getUserRoles();
         if (!mounted) return;
-
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => const GetStartedScreen(),
+            builder: (_) => HomeScreen(
+              roles: roles,
+              onActivateSeller: _activateSeller,
+            ),
           ),
         );
-      },
+        return;
+      }
+    } catch (_) {
+      // In case of storage reading error, fallback to GetStarted
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => const GetStartedScreen(),
+      ),
     );
+  }
+
+  Future<bool> _activateSeller() async {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: ApiConstants.baseUrl,
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 20),
+      ),
+    );
+
+    try {
+      final sellerService = SellerService(
+        dio,
+        _secureStorage,
+      );
+
+      final success = await sellerService.activateSeller();
+      if (success) {
+        final currentRoles = await _secureStorage.getUserRoles();
+        if (!currentRoles.contains('SEL')) {
+          await _secureStorage.saveUserRoles([...currentRoles, 'SEL']);
+        }
+      }
+      return success;
+    } finally {
+      dio.close();
+    }
   }
 
   @override

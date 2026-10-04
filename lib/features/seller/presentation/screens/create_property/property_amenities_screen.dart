@@ -147,7 +147,7 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
     });
   }
 
-  Future<void> _saveAmenities() async {
+  Future<void> _saveAmenities({bool exitAfterSave = false}) async {
     if (_isSaving) return;
 
     setState(() {
@@ -164,6 +164,10 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
 
       if (!mounted) return;
 
+      setState(() {
+        _isSaving = false;
+      });
+
       if (_selectedAmenityIds.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -176,8 +180,15 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
         );
       }
 
+      if (exitAfterSave) {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context, true);
+        }
+        return;
+      }
+
       // Navigate to Step 4: Financials
-      final result = await Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PropertyFinancialsScreen(
@@ -186,10 +197,6 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
           ),
         ),
       );
-
-      if (result == true && mounted) {
-        Navigator.pop(context, true);
-      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -620,44 +627,82 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
           ),
         ],
       ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 54,
-        child: ElevatedButton(
-          onPressed: _isSaving ? null : _saveAmenities,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: _isSaving ? null : () => _saveAmenities(exitAfterSave: true),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: primaryColor, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Save & Exit',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: primaryColor,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          child: _isSaving
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : () => _saveAmenities(exitAfterSave: false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      buttonText,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward, size: 20),
-                  ],
                 ),
-        ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              buttonText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_forward, size: 16),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

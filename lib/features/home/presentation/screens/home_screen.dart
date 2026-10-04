@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:zogo_realtor/core/storage/secure_storage_service.dart';
+import 'package:zogo_realtor/features/auth/presentation/screens/get_started_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/SellerMyPropertiesScreen.dart';
 
 import '../widgets/featured_property_card.dart';
@@ -117,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildPlaceholder('Search'),
             _buildPlaceholder('Saved'),
             _buildPlaceholder('Messages'),
-            _buildPlaceholder('Profile'),
+            _buildProfile(),
           ],
         ),
       ),
@@ -419,6 +421,135 @@ class _HomeScreenState extends State<HomeScreen> {
           fontWeight: FontWeight.w700,
         ),
       ),
+    );
+  }
+
+  Widget _buildProfile() {
+    return FutureBuilder<Map<String, String>>(
+      future: SecureStorageService().getUserProfile(),
+      builder: (context, snapshot) {
+        final profile = snapshot.data ?? {};
+        final firstName = profile['firstName'] ?? '';
+        final lastName = profile['lastName'] ?? '';
+        final email = profile['email'] ?? '';
+        final fullName = ('$firstName $lastName').trim().isNotEmpty
+            ? ('$firstName $lastName').trim()
+            : 'ZoGo User';
+
+        return ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 20),
+            Center(
+              child: CircleAvatar(
+                radius: 44,
+                backgroundColor: primaryCyan.withValues(alpha: 0.15),
+                child: Text(
+                  fullName.isNotEmpty ? fullName[0].toUpperCase() : 'U',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: primaryCyan,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                fullName,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+            ),
+            if (email.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Center(
+                child: Text(
+                  email,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Center(
+              child: Wrap(
+                spacing: 8,
+                children: _roles.map((r) {
+                  final isSeller = r.toUpperCase() == 'SEL';
+                  return Chip(
+                    label: Text(
+                      isSeller ? 'Seller' : (r.toUpperCase() == 'BYR' ? 'Buyer' : r),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isSeller ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    backgroundColor: isSeller ? primaryCyan : Colors.grey.shade200,
+                    padding: EdgeInsets.zero,
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 32),
+            if (_hasSellerRole)
+              ListTile(
+                leading: const Icon(Icons.apartment_rounded, color: primaryCyan),
+                title: const Text('My Listed Properties', style: TextStyle(fontWeight: FontWeight.w600)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                tileColor: Colors.white,
+                onTap: _openMyProperties,
+              ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.redAccent)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              tileColor: Colors.white,
+              onTap: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Log Out'),
+                    content: const Text('Are you sure you want to log out from ZoGo Realtor?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Log Out'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await SecureStorageService().clearAll();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const GetStartedScreen()),
+                      (route) => false,
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 

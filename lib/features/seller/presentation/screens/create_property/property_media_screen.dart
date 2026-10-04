@@ -348,7 +348,9 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
       ),
     );
 
-    Navigator.pop(context, true);
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context, true);
+    }
   }
 
   @override
@@ -917,44 +919,88 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
           ),
         ],
       ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 54,
-        child: ElevatedButton(
-          onPressed: _isFinalizing ? null : _finishListing,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: _isFinalizing
+                    ? null
+                    : () {
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context, true);
+                        }
+                      },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(color: Colors.grey.shade400),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Save & Exit',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          child: _isFinalizing
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isFinalizing ? null : _finishListing,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                )
-              : const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Complete Property Listing',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Icon(Icons.done_all, size: 20),
-                  ],
                 ),
-        ),
+                child: _isFinalizing
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Complete Listing',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(Icons.done_all, size: 18),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

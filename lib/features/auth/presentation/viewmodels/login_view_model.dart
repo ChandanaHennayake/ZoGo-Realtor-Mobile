@@ -49,13 +49,10 @@ class LoginViewModel extends ChangeNotifier {
       );
 
       // Keep the complete login response,
-      // including the user's roles.
+      // including the user's roles and profile.
       _loginResponse = response;
 
-      await _secureStorage.saveTokens(
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-      );
+      await _secureStorage.saveUserSession(response);
 
       return true;
     } catch (e) {
@@ -94,13 +91,10 @@ class LoginViewModel extends ChangeNotifier {
       );
 
       // Keep the complete login response,
-      // including the user's roles.
+      // including the user's roles and profile.
       _loginResponse = response;
 
-      await _secureStorage.saveTokens(
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-      );
+      await _secureStorage.saveUserSession(response);
 
       return true;
     } catch (e) {

@@ -42,8 +42,10 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
   // Location Information
   int _selectedProvinceId = 2; // Default: Central
   int _selectedDistrictId = 5; // Default: Matale
-  final TextEditingController _cityController = TextEditingController();
-  final TextEditingController _cityIdController = TextEditingController(text: '5003');
+  int? _selectedCityId;
+  String? _selectedCityName;
+  List<Map<String, dynamic>> _cities = [];
+  bool _isLoadingCities = false;
   final TextEditingController _addressLine1Controller = TextEditingController();
   final TextEditingController _addressLine2Controller = TextEditingController();
   final TextEditingController _postalCodeController = TextEditingController();
@@ -122,6 +124,41 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
       _populateFromData(widget.initialData!);
     } else if (widget.propertyId != null && widget.propertyId!.isNotEmpty) {
       _loadProperty();
+    } else {
+      _loadCitiesForSelectedDistrict();
+    }
+  }
+
+  Future<void> _loadCitiesForSelectedDistrict({int? preselectCityId, String? preselectCityName}) async {
+    setState(() {
+      _isLoadingCities = true;
+    });
+
+    try {
+      final cities = await _sellerService.getCitiesByDistrict(_selectedDistrictId);
+      if (!mounted) return;
+
+      setState(() {
+        _cities = cities;
+        _isLoadingCities = false;
+
+        if (preselectCityId != null && cities.any((c) => (c['id'] as num?)?.toInt() == preselectCityId)) {
+          _selectedCityId = preselectCityId;
+          _selectedCityName = preselectCityName ?? cities.firstWhere((c) => (c['id'] as num?)?.toInt() == preselectCityId)['name']?.toString();
+        } else if (cities.isNotEmpty) {
+          _selectedCityId = (cities.first['id'] as num?)?.toInt();
+          _selectedCityName = cities.first['name']?.toString();
+        } else {
+          _selectedCityId = null;
+          _selectedCityName = null;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoadingCities = false;
+        });
+      }
     }
   }
 
@@ -147,10 +184,12 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
     if (data['districtId'] != null) {
       _selectedDistrictId = (data['districtId'] as num).toInt();
     }
-    _cityController.text = data['city']?.toString() ?? '';
-    if (data['cityId'] != null) {
-      _cityIdController.text = data['cityId'].toString();
-    }
+    final cId = (data['cityId'] as num?)?.toInt();
+    final cName = data['city']?.toString();
+    _selectedCityId = cId;
+    _selectedCityName = cName;
+    _loadCitiesForSelectedDistrict(preselectCityId: cId, preselectCityName: cName);
+
     _addressLine1Controller.text = data['addressLine1']?.toString() ?? '';
     _addressLine2Controller.text = data['addressLine2']?.toString() ?? '';
     _postalCodeController.text = data['postalCode']?.toString() ?? '';
@@ -179,8 +218,6 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
     _descriptionController.dispose();
     _referenceNoController.dispose();
     _askingPriceController.dispose();
-    _cityController.dispose();
-    _cityIdController.dispose();
     _addressLine1Controller.dispose();
     _addressLine2Controller.dispose();
     _postalCodeController.dispose();
@@ -198,10 +235,10 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
   }
 
   // ============================================================
-  // SAVE AND NEXT
+  // SAVE AND NEXT / SAVE AND EXIT
   // ============================================================
 
-  Future<void> _saveAndNext() async {
+  Future<void> _saveAndNext({bool exitAfterSave = false}) async {
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) {
@@ -225,7 +262,16 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
       return;
     }
 
-    final int cityId = int.tryParse(_cityIdController.text.trim()) ?? 0;
+    if (_selectedCityId == null || _selectedCityId! <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a city from the common service.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     final double? latitude = double.tryParse(_latitudeController.text.trim());
     final double? longitude = double.tryParse(_longitudeController.text.trim());
 
@@ -239,8 +285,8 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
       'districtId': _selectedDistrictId,
       'divisionalSecretariatId': null,
       'gnDivisionId': null,
-      'cityId': cityId,
-      'city': _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
+      'cityId': _selectedCityId,
+      'city': _selectedCityName,
       'addressLine1': _addressLine1Controller.text.trim(),
       'addressLine2': _addressLine2Controller.text.trim().isEmpty ? null : _addressLine2Controller.text.trim(),
       'postalCode': _postalCodeController.text.trim().isEmpty ? null : _postalCodeController.text.trim(),
@@ -285,8 +331,15 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
         _isSubmitting = false;
       });
 
+      if (exitAfterSave) {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context, true);
+        }
+        return;
+      }
+
       // Navigate to the next page: Property Features screen
-      final result = await Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PropertyFeaturesScreen(
@@ -295,10 +348,6 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
           ),
         ),
       );
-
-      if (result == true && mounted) {
-        Navigator.pop(context, true);
-      }
     } catch (e) {
       if (!mounted) return;
 
@@ -309,7 +358,6 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error saving property: $e'),
-
           backgroundColor: Colors.red.shade700,
           duration: const Duration(seconds: 4),
         ),
@@ -437,15 +485,20 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
                               },
                             ),
                             const SizedBox(height: 8),
-                            _buildLabel('Reference No (Optional)'),
+                            _buildLabel('Reference Number', required: true),
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _referenceNoController,
                               textInputAction: TextInputAction.next,
                               decoration: _inputDecoration(
-                                hintText: 'Leave empty for auto-generated reference',
+                                hintText: 'e.g. REF-2026-001',
                                 prefixIcon: Icons.tag_outlined,
                               ),
+                              validator: (value) {
+                                final text = value?.trim() ?? '';
+                                if (text.isEmpty) return 'Reference number is required.';
+                                return null;
+                              },
                             ),
                           ],
                         ),
@@ -547,7 +600,7 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
                                 );
                               }).toList(),
                               onChanged: (val) {
-                                if (val != null) {
+                                if (val != null && val != _selectedProvinceId) {
                                   setState(() {
                                     _selectedProvinceId = val;
                                     final districts = _districtsByProvince[val] ?? [];
@@ -555,6 +608,7 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
                                       _selectedDistrictId = districts.first['id'] as int;
                                     }
                                   });
+                                  _loadCitiesForSelectedDistrict();
                                 }
                               },
                             ),
@@ -575,57 +629,91 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
                                 );
                               }).toList(),
                               onChanged: (val) {
-                                if (val != null) {
+                                if (val != null && val != _selectedDistrictId) {
                                   setState(() {
                                     _selectedDistrictId = val;
                                   });
+                                  _loadCitiesForSelectedDistrict();
                                 }
                               },
                             ),
                             const SizedBox(height: 16),
 
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _buildLabel('City Name'),
-                                      const SizedBox(height: 8),
-                                      TextFormField(
-                                        controller: _cityController,
-                                        textInputAction: TextInputAction.next,
-                                        decoration: _inputDecoration(
-                                          hintText: 'e.g. Kandy',
-                                          prefixIcon: Icons.apartment_outlined,
+                            _buildLabel('City', required: true),
+                            const SizedBox(height: 8),
+                            _isLoadingCities
+                                ? Container(
+                                    height: 52,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF9FAFB),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: primaryCyan,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 1,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _buildLabel('City ID'),
-                                      const SizedBox(height: 8),
-                                      TextFormField(
-                                        controller: _cityIdController,
-                                        keyboardType: TextInputType.number,
-                                        textInputAction: TextInputAction.next,
-                                        decoration: _inputDecoration(
-                                          hintText: '5003',
-                                          prefixIcon: Icons.numbers_outlined,
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Loading cities from common service...',
+                                          style: TextStyle(
+                                            color: Color(0xFF6B7280),
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
+                                  )
+                                : DropdownButtonFormField<int>(
+                                    value: _cities.any((c) => (c['id'] as num?)?.toInt() == _selectedCityId)
+                                        ? _selectedCityId
+                                        : null,
+                                    isExpanded: true,
+                                    decoration: _inputDecoration(
+                                      hintText: _cities.isEmpty ? 'No cities available' : 'Select City',
+                                      prefixIcon: Icons.apartment_outlined,
+                                    ),
+                                    items: _cities.map((city) {
+                                      final id = (city['id'] as num?)?.toInt() ?? 0;
+                                      final name = city['name']?.toString() ?? '';
+                                      return DropdownMenuItem<int>(
+                                        value: id,
+                                        child: Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1A1A1A),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setState(() {
+                                          _selectedCityId = val;
+                                          final found = _cities.firstWhere(
+                                            (c) => (c['id'] as num?)?.toInt() == val,
+                                            orElse: () => {'name': ''},
+                                          );
+                                          _selectedCityName = found['name']?.toString();
+                                        });
+                                      }
+                                    },
+                                    validator: (val) {
+                                      if (val == null) {
+                                        return 'Please select a city.';
+                                      }
+                                      return null;
+                                    },
                                   ),
-                                ),
-                              ],
-                            ),
                             const SizedBox(height: 16),
 
                             _buildLabel('Address Line 1', required: true),
@@ -1053,44 +1141,82 @@ class _PropertyBasicScreenState extends State<PropertyBasicScreen> {
           ),
         ),
       ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 54,
-        child: ElevatedButton(
-          onPressed: _isSubmitting ? null : _saveAndNext,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryCyan,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: primaryCyan.withValues(alpha: 0.6),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: _isSubmitting ? null : () => _saveAndNext(exitAfterSave: true),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: primaryCyan, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Save & Exit',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: primaryCyan,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 1,
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : () => _saveAndNext(exitAfterSave: false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryCyan,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: primaryCyan.withValues(alpha: 0.6),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                )
-              : const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Save and Next',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward, size: 20),
-                  ],
                 ),
-        ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Save & Next',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(Icons.arrow_forward, size: 16),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
