@@ -465,7 +465,9 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
           _buildStepLine(true),
           _buildStepItem(number: '5', title: 'Legal', isCompleted: true, isActive: false),
           _buildStepLine(true),
-          _buildStepItem(number: '6', title: 'Media', isCompleted: false, isActive: true),
+          _buildStepItem(number: '6', title: 'Docs', isCompleted: true, isActive: false),
+          _buildStepLine(true),
+          _buildStepItem(number: '7', title: 'Media', isCompleted: false, isActive: true),
         ],
       ),
     );

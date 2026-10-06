@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
-import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_media_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_documents_screen.dart';
 
 class PropertyLegalDetailsScreen extends StatefulWidget {
   final String propertyId;
@@ -151,11 +151,11 @@ class _PropertyLegalDetailsScreenState
         return;
       }
 
-      // Navigate to Final Step: Media Upload
+      // Navigate to Next Step: Documents
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => PropertyMediaScreen(
+          builder: (context) => PropertyDocumentsScreen(
             propertyId: widget.propertyId,
             propertyType: widget.propertyType,
           ),
@@ -290,7 +290,9 @@ class _PropertyLegalDetailsScreenState
           _buildStepLine(true),
           _buildStepItem(number: '5', title: 'Legal', isCompleted: false, isActive: true),
           _buildStepLine(false),
-          _buildStepItem(number: '6', title: 'Media', isCompleted: false, isActive: false),
+          _buildStepItem(number: '6', title: 'Docs', isCompleted: false, isActive: false),
+          _buildStepLine(false),
+          _buildStepItem(number: '7', title: 'Media', isCompleted: false, isActive: false),
         ],
       ),
     );
@@ -698,7 +700,7 @@ class _PropertyLegalDetailsScreenState
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Clear legal title and honest mortgage disclosures are verified before contracts. Next, upload high quality photos and videos of your property.',
+              'Clear legal title and honest mortgage disclosures are verified before contracts. Next, upload Title Deeds, Survey Plans, and municipal approvals.',
               style: TextStyle(fontSize: 13, height: 1.5, color: Colors.black54),
             ),
           ),
@@ -779,7 +781,7 @@ class _PropertyLegalDetailsScreenState
                         children: [
                           Flexible(
                             child: Text(
-                              'Next: Media',
+                              'Next: Documents',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

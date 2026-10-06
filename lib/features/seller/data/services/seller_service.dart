@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:zogo_realtor/core/constants/api_constants.dart';
@@ -851,6 +852,200 @@ class SellerService {
   }
 
   // ============================================================
+  // PROPERTY DOCUMENTS
+  // ============================================================
+
+  Future<Map<String, dynamic>> uploadPropertyDocument({
+    required String propertyId,
+    required File file,
+    required int documentTypeId,
+    void Function(int sent, int total)? onSendProgress,
+  }) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final fileName = file.path.split(Platform.pathSeparator).last;
+      final formData = FormData.fromMap({
+        'File': await MultipartFile.fromFile(
+          file.path,
+          filename: fileName,
+        ),
+        'DocumentTypeId': documentTypeId,
+      });
+
+      final url = '/api/v1/properties/$propertyId/documents';
+
+      final response = await _dio.post(
+        url,
+        data: formData,
+        onSendProgress: onSendProgress,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      debugPrint('UPLOAD DOCUMENT STATUS: ${response.statusCode}');
+      debugPrint('UPLOAD DOCUMENT RESPONSE: ${response.data}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (response.data is Map<String, dynamic>) {
+          return response.data as Map<String, dynamic>;
+        } else if (response.data is Map) {
+          return Map<String, dynamic>.from(response.data as Map);
+        }
+        return {'status': 'success'};
+      }
+
+      throw Exception(
+        _parseErrorMessage(
+          response.data,
+          response.statusCode,
+          'Failed to upload document',
+        ),
+      );
+    } on DioException catch (e) {
+      debugPrint('UPLOAD DOCUMENT DIO ERROR: ${e.message}');
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Failed to upload document: ${e.message}',
+        ),
+      );
+    } catch (e) {
+      debugPrint('UPLOAD DOCUMENT ERROR: $e');
+      throw Exception(e.toString());
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPropertyDocuments(
+    String propertyId,
+  ) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final url = '/api/v1/properties/$propertyId/documents';
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data;
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+      return [];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return [];
+      }
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Failed to load property documents',
+        ),
+      );
+    }
+  }
+
+  Future<void> deletePropertyDocument(
+    String propertyId,
+    String documentId,
+  ) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final url = '/api/v1/properties/$propertyId/documents/$documentId';
+      final response = await _dio.delete(
+        url,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception(
+          _parseErrorMessage(
+            response.data,
+            response.statusCode,
+            'Failed to delete document',
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Network error: ${e.message}',
+        ),
+      );
+    }
+  }
+
+  Future<List<int>> downloadPropertyDocument(
+    String propertyId,
+    String documentId,
+  ) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final url = '/api/v1/properties/$propertyId/documents/$documentId/download';
+      final response = await _dio.get<List<int>>(
+        url,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+          responseType: ResponseType.bytes,
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        return response.data!;
+      }
+      throw Exception('Failed to download document');
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Download error: ${e.message}',
+        ),
+      );
+    }
+  }
+
+  // ============================================================
   // PROPERTY GET BY ID, PUBLISH & UPDATE
   // ============================================================
 
@@ -1033,6 +1228,37 @@ class SellerService {
     } catch (e) {
       debugPrint('GET CITIES BY PROVINCE ERROR: $e');
       return [];
+    }
+  }
+
+  // ============================================================
+  // PROPERTY STATUSES (BACKEND TABLE PropertyStatuses)
+  // ============================================================
+
+  static const List<Map<String, dynamic>> defaultPropertyStatuses = [
+    {'id': 1, 'code': 'DRAFT', 'name': 'Draft'},
+    {'id': 2, 'code': 'PUBLISHED', 'name': 'Published'},
+    {'id': 3, 'code': 'UNDER_REVIEW', 'name': 'Under Review'},
+    {'id': 4, 'code': 'PENDING_APPROVAL', 'name': 'Pending Approval'},
+    {'id': 5, 'code': 'SOLD', 'name': 'Sold'},
+    {'id': 6, 'code': 'RENTED', 'name': 'Rented'},
+    {'id': 7, 'code': 'SUSPENDED', 'name': 'Suspended'},
+    {'id': 8, 'code': 'INACTIVE', 'name': 'Inactive'},
+  ];
+
+  Future<List<Map<String, dynamic>>> getPropertyStatuses() async {
+    try {
+      final response = await _dio.get('/api/v1/common/property-statuses');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return defaultPropertyStatuses;
+    } catch (e) {
+      debugPrint('GET PROPERTY STATUSES ERROR: $e');
+      return defaultPropertyStatuses;
     }
   }
 }

@@ -7,6 +7,7 @@ import 'package:zogo_realtor/features/seller/presentation/screens/create_propert
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_features_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_financials_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_legal_details_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_documents_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_media_screen.dart';
 
 class SellerPropertyDetailsScreen extends StatefulWidget {
@@ -39,11 +40,14 @@ class _SellerPropertyDetailsScreenState
   String? _accessToken;
 
   Map<String, dynamic> _property = {};
+  List<Map<String, dynamic>> _propertyStatuses =
+      List.from(SellerService.defaultPropertyStatuses);
   List<Map<String, dynamic>> _media = [];
   List<Map<String, dynamic>> _features = [];
   List<Map<String, dynamic>> _amenities = [];
   Map<String, dynamic>? _financials;
   Map<String, dynamic>? _legalDetails;
+  List<Map<String, dynamic>> _documents = [];
 
   int _currentImageIndex = 0;
   final PageController _pageController = PageController();
@@ -147,7 +151,7 @@ class _SellerPropertyDetailsScreenState
     try {
       _accessToken = await _secureStorage.getAccessToken();
 
-      // Load main details, media, features, amenities, financials, legal in parallel
+      // Load main details, statuses, media, features, amenities, financials, legal, documents in parallel
       final results = await Future.wait([
         _sellerService.getPropertyById(widget.propertyId).catchError((_) => _property),
         _sellerService.getPropertyMedia(widget.propertyId).catchError((_) => <Map<String, dynamic>>[]),
@@ -155,6 +159,8 @@ class _SellerPropertyDetailsScreenState
         _sellerService.getPropertyAmenities(widget.propertyId).catchError((_) => <Map<String, dynamic>>[]),
         _sellerService.getPropertyFinancials(widget.propertyId).catchError((_) => null),
         _sellerService.getPropertyLegalDetails(widget.propertyId).catchError((_) => null),
+        _sellerService.getPropertyDocuments(widget.propertyId).catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getPropertyStatuses().catchError((_) => <Map<String, dynamic>>[]),
       ]);
 
       if (!mounted) return;
@@ -168,6 +174,11 @@ class _SellerPropertyDetailsScreenState
         _amenities = results[3] as List<Map<String, dynamic>>;
         _financials = results[4] as Map<String, dynamic>?;
         _legalDetails = results[5] as Map<String, dynamic>?;
+        _documents = results[6] as List<Map<String, dynamic>>;
+        final fetchedStatuses = results[7] as List<Map<String, dynamic>>;
+        if (fetchedStatuses.isNotEmpty) {
+          _propertyStatuses = fetchedStatuses;
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -186,6 +197,86 @@ class _SellerPropertyDetailsScreenState
       return true;
     }
     return false;
+  }
+
+  String _getPropertyStatusName() {
+    final rawName = _property['statusName']?.toString();
+    if (rawName != null && rawName.trim().isNotEmpty) {
+      return rawName.trim();
+    }
+    final rawStatus = (_property['status'] as num?)?.toInt() ?? 1;
+    final match = _propertyStatuses.firstWhere(
+      (s) => (s['id'] as num?)?.toInt() == rawStatus,
+      orElse: () => <String, dynamic>{},
+    );
+    if (match.isNotEmpty && match['name'] != null) {
+      return match['name'].toString();
+    }
+    return rawStatus == 1 ? 'Draft' : 'Status #$rawStatus';
+  }
+
+  ({Color bg, Color border, Color text, IconData icon}) _getStatusVisuals(
+      int statusId, String statusName) {
+    final lower = statusName.toLowerCase();
+    if (statusId == 1 || lower.contains('draft')) {
+      return (
+        bg: Colors.amber.shade50,
+        border: Colors.amber.shade400,
+        text: Colors.amber.shade900,
+        icon: Icons.edit_note_rounded,
+      );
+    } else if (statusId == 2 ||
+        lower.contains('published') ||
+        lower.contains('live')) {
+      return (
+        bg: Colors.green.shade50,
+        border: Colors.green.shade400,
+        text: Colors.green.shade800,
+        icon: Icons.check_circle_rounded,
+      );
+    } else if (statusId == 3 || lower.contains('review')) {
+      return (
+        bg: Colors.blue.shade50,
+        border: Colors.blue.shade400,
+        text: Colors.blue.shade800,
+        icon: Icons.hourglass_top_rounded,
+      );
+    } else if (statusId == 4 || lower.contains('pending')) {
+      return (
+        bg: Colors.deepPurple.shade50,
+        border: Colors.deepPurple.shade400,
+        text: Colors.deepPurple.shade800,
+        icon: Icons.pending_actions_rounded,
+      );
+    } else if (statusId == 5 || lower.contains('sold')) {
+      return (
+        bg: Colors.red.shade50,
+        border: Colors.red.shade400,
+        text: Colors.red.shade800,
+        icon: Icons.sell_rounded,
+      );
+    } else if (statusId == 6 || lower.contains('rented')) {
+      return (
+        bg: Colors.teal.shade50,
+        border: Colors.teal.shade400,
+        text: Colors.teal.shade800,
+        icon: Icons.vpn_key_rounded,
+      );
+    } else if (statusId == 7 || lower.contains('suspended')) {
+      return (
+        bg: Colors.orange.shade50,
+        border: Colors.orange.shade400,
+        text: Colors.orange.shade800,
+        icon: Icons.pause_circle_outline_rounded,
+      );
+    } else {
+      return (
+        bg: const Color(0xFFF3F4F6),
+        border: Colors.grey.shade400,
+        text: const Color(0xFF374151),
+        icon: Icons.info_outline_rounded,
+      );
+    }
   }
 
   String _formatCurrency(dynamic value) {
@@ -252,6 +343,7 @@ class _SellerPropertyDetailsScreenState
       setState(() {
         _isPublishing = false;
         _property['status'] = 2; // Published
+        _property['statusName'] = 'Published';
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -424,6 +516,25 @@ class _SellerPropertyDetailsScreenState
             ),
             _buildSectionTile(
               stepNumber: 6,
+              title: 'Legal & Official Documents',
+              subtitle: 'Title Deed, Survey Plan, approvals, and certificates',
+              icon: Icons.folder_shared_outlined,
+              onTap: () async {
+                Navigator.pop(context);
+                final res = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PropertyDocumentsScreen(
+                      propertyId: widget.propertyId,
+                      propertyType: typeName,
+                    ),
+                  ),
+                );
+                if (res == true || mounted) _loadAllPropertyData();
+              },
+            ),
+            _buildSectionTile(
+              stepNumber: 7,
               title: 'Photos & Media',
               subtitle: 'Upload property photos and videos (10MB max)',
               icon: Icons.photo_library_outlined,
@@ -585,6 +696,8 @@ class _SellerPropertyDetailsScreenState
                               _buildFinancialsCard(),
                               const SizedBox(height: 16),
                               _buildLegalDetailsCard(),
+                              const SizedBox(height: 16),
+                              _buildDocumentsCard(),
                             ],
                           ),
                         ),
@@ -811,7 +924,9 @@ class _SellerPropertyDetailsScreenState
     final isNegotiable = _property['isNegotiable'] == true;
     final referenceNo = _property['referenceNo']?.toString();
 
-    final isDraft = _isDraft;
+    final statusId = (_property['status'] as num?)?.toInt() ?? 1;
+    final statusName = _getPropertyStatusName();
+    final statusVisuals = _getStatusVisuals(statusId, statusName);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -832,35 +947,31 @@ class _SellerPropertyDetailsScreenState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Status Badge
+              // Dynamic Status Badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isDraft
-                      ? Colors.amber.shade50
-                      : Colors.green.shade50,
+                  color: statusVisuals.bg,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isDraft
-                        ? Colors.amber.shade400
-                        : Colors.green.shade400,
+                    color: statusVisuals.border,
                   ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      isDraft ? Icons.edit_note : Icons.check_circle,
+                      statusVisuals.icon,
                       size: 16,
-                      color: isDraft ? Colors.amber.shade800 : Colors.green.shade700,
+                      color: statusVisuals.text,
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      isDraft ? 'DRAFT' : 'PUBLISHED',
+                      statusName.toUpperCase(),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: isDraft ? Colors.amber.shade900 : Colors.green.shade800,
+                        color: statusVisuals.text,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -1347,6 +1458,179 @@ class _SellerPropertyDetailsScreenState
                       : Colors.grey.shade700,
                 ),
               ],
+            ),
+    );
+  }
+
+  Widget _buildDocumentsCard() {
+    final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+
+    return _buildCard(
+      title: 'Legal & Official Documents (${_documents.length})',
+      icon: Icons.folder_shared_outlined,
+      trailing: IconButton(
+        icon: const Icon(Icons.edit, size: 18, color: primaryCyan),
+        tooltip: 'Manage Documents',
+        onPressed: () async {
+          final res = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PropertyDocumentsScreen(
+                propertyId: widget.propertyId,
+                propertyType: typeName,
+              ),
+            ),
+          );
+          if (res == true || mounted) _loadAllPropertyData();
+        },
+      ),
+      child: _documents.isEmpty
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'No documents uploaded yet. Uploading deeds and approvals helps buyers verify your listing faster.',
+                  style: TextStyle(color: secondaryGray, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final res = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PropertyDocumentsScreen(
+                          propertyId: widget.propertyId,
+                          propertyType: typeName,
+                        ),
+                      ),
+                    );
+                    if (res == true || mounted) _loadAllPropertyData();
+                  },
+                  icon: const Icon(Icons.upload_file, size: 16, color: primaryCyan),
+                  label: const Text(
+                    'Upload Documents',
+                    style: TextStyle(color: primaryCyan, fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: primaryCyan),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              children: _documents.map((doc) {
+                final typeId = (doc['documentTypeId'] as num?)?.toInt() ?? 1;
+                final docType = kPropertyDocumentTypes.firstWhere(
+                  (t) => t.id == typeId,
+                  orElse: () => PropertyDocumentType(
+                    id: typeId,
+                    name: 'Document #$typeId',
+                    description: '',
+                    icon: Icons.description_outlined,
+                  ),
+                );
+                final fileName = doc['originalFileName']?.toString() ?? 'Document';
+                final bytes = doc['fileSizeBytes'];
+                final num b = bytes is num ? bytes : num.tryParse(bytes?.toString() ?? '0') ?? 0;
+                final sizeText = b >= (1024 * 1024)
+                    ? '${(b / (1024 * 1024)).toStringAsFixed(1)} MB'
+                    : '${(b / 1024).toStringAsFixed(0)} KB';
+                final status = doc['status'] as num? ?? 1;
+
+                Color badgeBg;
+                Color badgeFg;
+                String badgeText;
+                switch (status.toInt()) {
+                  case 2:
+                    badgeBg = Colors.amber.shade50;
+                    badgeFg = Colors.amber.shade900;
+                    badgeText = 'Under Review';
+                    break;
+                  case 3:
+                    badgeBg = Colors.green.shade50;
+                    badgeFg = Colors.green.shade700;
+                    badgeText = 'Verified';
+                    break;
+                  case 4:
+                    badgeBg = Colors.red.shade50;
+                    badgeFg = Colors.red.shade700;
+                    badgeText = 'Rejected';
+                    break;
+                  default:
+                    badgeBg = const Color(0xFFE0F7FA);
+                    badgeFg = const Color(0xFF00838F);
+                    badgeText = 'Uploaded';
+                    break;
+                }
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: primaryCyan.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(docType.icon, color: primaryCyan, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              docType.name,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: darkText,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$fileName ($sizeText)',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: secondaryGray,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          badgeText,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: badgeFg,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
     );
   }
