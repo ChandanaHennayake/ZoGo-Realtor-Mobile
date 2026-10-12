@@ -8,8 +8,8 @@ import '../../../../data/services/auth_api_service.dart';
 import '../../../../data/services/google_auth_service.dart';
 import '../viewmodels/login_view_model.dart';
 
-// Keep your existing HomeScreen import if the path is different.
 import '../../../home/presentation/screens/home_screen.dart';
+import '../../../agent/presentation/screens/agent_home_screen.dart';
 
 // NEW: seller activation API + constants.
 import 'package:zogo_realtor/core/constants/api_constants.dart';
@@ -127,12 +127,17 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (success) {
+      final roles = _loginViewModel.roles;
+      final isAgent = roles.any((r) => r.trim().toUpperCase() == 'AGT');
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            roles: _loginViewModel.roles,
-            onActivateSeller: _activateSeller,
-          ),
+          builder: (_) => isAgent
+              ? AgentHomeScreen(roles: roles)
+              : HomeScreen(
+                  roles: roles,
+                  onActivateSeller: _activateSeller,
+                ),
         ),
       );
 
@@ -160,12 +165,17 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (success) {
+      final roles = _loginViewModel.roles;
+      final isAgent = roles.any((r) => r.trim().toUpperCase() == 'AGT');
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => HomeScreen(
-            roles: _loginViewModel.roles,
-            onActivateSeller: _activateSeller,
-          ),
+          builder: (_) => isAgent
+              ? AgentHomeScreen(roles: roles)
+              : HomeScreen(
+                  roles: roles,
+                  onActivateSeller: _activateSeller,
+                ),
         ),
       );
 

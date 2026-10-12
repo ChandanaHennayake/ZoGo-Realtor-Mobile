@@ -5,6 +5,7 @@ import 'package:zogo_realtor/core/constants/api_constants.dart';
 import 'package:zogo_realtor/core/storage/secure_storage_service.dart';
 import 'package:zogo_realtor/features/auth/presentation/screens/get_started_screen.dart';
 import 'package:zogo_realtor/features/home/presentation/screens/home_screen.dart';
+import 'package:zogo_realtor/features/agent/presentation/screens/agent_home_screen.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -32,12 +33,16 @@ class _SplashScreenState extends State<SplashScreen> {
       if (isLoggedIn && mounted) {
         final roles = await _secureStorage.getUserRoles();
         if (!mounted) return;
+        final isAgent = roles.any((r) => r.trim().toUpperCase() == 'AGT');
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => HomeScreen(
-              roles: roles,
-              onActivateSeller: _activateSeller,
-            ),
+            builder: (_) => isAgent
+                ? AgentHomeScreen(roles: roles)
+                : HomeScreen(
+                    roles: roles,
+                    onActivateSeller: _activateSeller,
+                  ),
           ),
         );
         return;

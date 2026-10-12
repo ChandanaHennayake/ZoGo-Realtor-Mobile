@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zogo_realtor/core/storage/secure_storage_service.dart';
 import 'package:zogo_realtor/features/auth/presentation/screens/get_started_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/SellerMyPropertiesScreen.dart';
+import 'package:zogo_realtor/features/agent/presentation/screens/agent_home_screen.dart';
 
 import '../widgets/featured_property_card.dart';
 import '../widgets/home_header.dart';
@@ -9,6 +10,11 @@ import '../widgets/property_type_card.dart';
 import '../widgets/recommended_property_card.dart';
 
 import 'package:zogo_realtor/features/seller/presentation/screens/seller_activation_screen.dart';
+import 'package:zogo_realtor/features/buyer/data/services/buyer_favorite_service.dart';
+import 'package:zogo_realtor/features/buyer/models/buyer_property_list_item.dart';
+import 'package:zogo_realtor/features/buyer/presentation/screens/buyer_property_details_screen.dart';
+import 'package:zogo_realtor/features/buyer/presentation/screens/buyer_property_list_screen.dart';
+import 'package:zogo_realtor/features/buyer/presentation/widgets/buyer_property_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -65,10 +71,6 @@ class _HomeScreenState extends State<HomeScreen> {
     Icons.sell_outlined,
   ];
 
-  final TextEditingController _homeSearchController = TextEditingController();
-  String _searchCategory = 'All';
-  String _searchQueryText = '';
-
   // ============================================================
   // ROLES
   // ============================================================
@@ -90,15 +92,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _homeSearchController.dispose();
-    super.dispose();
-  }
-
   bool get _hasSellerRole {
     return _roles.any(
       (role) => role.trim().toUpperCase() == 'SEL',
+    );
+  }
+
+  bool get _hasAgentRole {
+    return _roles.any(
+      (role) => role.trim().toUpperCase() == 'AGT',
     );
   }
 
@@ -118,6 +120,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_hasAgentRole) {
+      return AgentHomeScreen(roles: _roles);
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FA),
 
@@ -248,10 +254,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   void _handleBuy() {
-    setState(() {
-      _searchCategory = 'All';
-      _selectedIndex = 2;
-    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BuyerPropertyListScreen(),
+      ),
+    );
   }
 
   // ============================================================
@@ -259,10 +267,14 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   void _handleRent() {
-    setState(() {
-      _searchCategory = 'Apartment';
-      _selectedIndex = 2;
-    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BuyerPropertyListScreen(
+          initialListingType: 2,
+        ),
+      ),
+    );
   }
 
   // ============================================================
@@ -326,7 +338,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // SECTION HEADER
   // ============================================================
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, {VoidCallback? onViewAll}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         20,
@@ -348,7 +360,15 @@ class _HomeScreenState extends State<HomeScreen> {
           const Spacer(),
 
           GestureDetector(
-            onTap: () {},
+            onTap: onViewAll ??
+                () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BuyerPropertyListScreen(),
+                    ),
+                  );
+                },
             child: const Text(
               'View All',
               style: TextStyle(
@@ -492,324 +512,121 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchTab() {
-    final allProperties = [
-      (
-        title: 'Modern Luxury Villa',
-        type: 'Villa',
-        price: 'Rs. 45,000,000',
-        location: 'Colombo 07',
-        beds: '4 Beds',
-        image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80',
-      ),
-      (
-        title: 'Beachfront Holiday Villa',
-        type: 'Villa',
-        price: 'Rs. 75,000,000',
-        location: 'Galle Fort',
-        beds: '5 Beds',
-        image: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=500&q=80',
-      ),
-      (
-        title: 'Contemporary Mountain House',
-        type: 'House',
-        price: 'Rs. 28,500,000',
-        location: 'Kandy Hills',
-        beds: '3 Beds',
-        image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=500&q=80',
-      ),
-      (
-        title: 'Skyline Luxury Penthouse',
-        type: 'Apartment',
-        price: 'Rs. 32,000,000',
-        location: 'Colombo 03',
-        beds: '3 Beds',
-        image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=500&q=80',
-      ),
-      (
-        title: 'Commercial Retail Space',
-        type: 'Commercial',
-        price: 'Rs. 95,000,000',
-        location: 'Kollupitiya',
-        beds: 'Commercial',
-        image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=500&q=80',
-      ),
-      (
-        title: 'Prime Coconut Estate Land',
-        type: 'Land',
-        price: 'Rs. 18,000,000',
-        location: 'Kurunegala',
-        beds: 'Land',
-        image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=500&q=80',
-      ),
-    ];
-
-    final filtered = allProperties.where((p) {
-      if (_searchCategory != 'All' && p.type.toLowerCase() != _searchCategory.toLowerCase()) {
-        return false;
-      }
-      if (_searchQueryText.trim().isNotEmpty) {
-        final q = _searchQueryText.trim().toLowerCase();
-        final matches = p.title.toLowerCase().contains(q) ||
-            p.location.toLowerCase().contains(q) ||
-            p.type.toLowerCase().contains(q);
-        if (!matches) return false;
-      }
-      return true;
-    }).toList();
-
-    return Column(
-      children: [
-        // Search header
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Column(
-            children: [
-              Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: TextField(
-                  controller: _homeSearchController,
-                  onChanged: (val) {
-                    setState(() {
-                      _searchQueryText = val;
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search by property name, city, type...',
-                    hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                    prefixIcon: const Icon(Icons.search_rounded, color: primaryCyan, size: 22),
-                    suffixIcon: _searchQueryText.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
-                            onPressed: () {
-                              _homeSearchController.clear();
-                              setState(() {
-                                _searchQueryText = '';
-                              });
-                            },
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: ['All', 'House', 'Apartment', 'Villa', 'Commercial', 'Land'].map((cat) {
-                    final isSel = _searchCategory == cat;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(cat),
-                        selected: isSel,
-                        selectedColor: primaryCyan,
-                        backgroundColor: const Color(0xFFF9FAFB),
-                        labelStyle: TextStyle(
-                          color: isSel ? Colors.white : Colors.black87,
-                          fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                          fontSize: 12,
-                        ),
-                        onSelected: (val) {
-                          setState(() {
-                            _searchCategory = cat;
-                          });
-                        },
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Result count
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
-          child: Row(
-            children: [
-              Text(
-                'Showing ${filtered.length} properties',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF6B7280)),
-              ),
-            ],
-          ),
-        ),
-
-        // List
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.search_off_rounded, size: 56, color: Colors.grey.shade400),
-                      const SizedBox(height: 12),
-                      const Text('No properties match your search', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () {
-                          _homeSearchController.clear();
-                          setState(() {
-                            _searchQueryText = '';
-                            _searchCategory = 'All';
-                          });
-                        },
-                        child: const Text('Reset Search', style: TextStyle(color: primaryCyan, fontWeight: FontWeight.w700)),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, index) => const SizedBox(height: 14),
-                  itemBuilder: (context, index) {
-                    final item = filtered[index];
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                            child: Image.network(
-                              item.image,
-                              height: 150,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: primaryCyan.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        item.type,
-                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: primaryCyan),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Text(
-                                      item.price,
-                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  item.title,
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
-                                    const SizedBox(width: 4),
-                                    Text(item.location, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                                    const Spacer(),
-                                    Text(item.beds, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
+    return const BuyerPropertyListScreen(isEmbedded: true);
   }
 
   Widget _buildSavedTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                color: pinkAccent.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.favorite_rounded,
-                size: 38,
-                color: pinkAccent,
+    return FutureBuilder<List<BuyerPropertyListItem>>(
+      future: BuyerFavoriteService().getFavorites(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: primaryCyan),
+          );
+        }
+
+        final favorites = snapshot.data ?? [];
+
+        if (favorites.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: pinkAccent.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      size: 38,
+                      color: pinkAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'No Saved Properties',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Tap the heart icon on any property to save it to your favorites list.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedIndex = 2; // Switch to Properties tab
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryCyan,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Explore Properties'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 18),
-            const Text(
-              'No Saved Properties',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A1A),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap the heart icon on any property to save it to your favorites list.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
-                color: Color(0xFF6B7280),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _selectedIndex = 2; // Switch to Search tab
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryCyan,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text('Explore Properties'),
-            ),
-          ],
-        ),
-      ),
+          );
+        }
+
+        return RefreshIndicator(
+          color: primaryCyan,
+          onRefresh: () async {
+            setState(() {});
+          },
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            itemCount: favorites.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 14),
+            itemBuilder: (context, index) {
+              final item = favorites[index];
+              return BuyerPropertyCard(
+                property: item,
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BuyerPropertyDetailsScreen(
+                        propertyId: item.propertyId,
+                        initialItem: item,
+                      ),
+                    ),
+                  );
+                  if (mounted) setState(() {});
+                },
+                onFavoriteToggle: (propertyId, currentlyFavorite) async {
+                  if (currentlyFavorite) {
+                    await BuyerFavoriteService().removeFavorite(propertyId);
+                  } else {
+                    await BuyerFavoriteService().addFavorite(propertyId);
+                  }
+                  if (mounted) setState(() {});
+                  return true;
+                },
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -888,7 +705,36 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            if (_hasSellerRole)
+            ListTile(
+              leading: const Icon(Icons.travel_explore_rounded, color: primaryCyan),
+              title: const Text('Browse Properties', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Explore properties available for sale and rent', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              tileColor: Colors.white,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BuyerPropertyListScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.favorite_rounded, color: pinkAccent),
+              title: const Text('Saved Properties', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('View your favorite saved properties', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              tileColor: Colors.white,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 3;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            if (_hasSellerRole) ...[
               ListTile(
                 leading: const Icon(Icons.apartment_rounded, color: primaryCyan),
                 title: const Text('My Listed Properties', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -897,7 +743,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 tileColor: Colors.white,
                 onTap: _openMyProperties,
               ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             ListTile(
               leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
               title: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.redAccent)),
@@ -980,9 +827,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
 
         NavigationDestination(
-          icon: Icon(Icons.search_outlined),
-          selectedIcon: Icon(Icons.search_rounded),
-          label: 'Search',
+          icon: Icon(Icons.travel_explore_outlined),
+          selectedIcon: Icon(Icons.travel_explore_rounded),
+          label: 'Properties',
         ),
 
         NavigationDestination(
