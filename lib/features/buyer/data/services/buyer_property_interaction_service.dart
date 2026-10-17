@@ -92,10 +92,29 @@ class BuyerPropertyInteractionService {
   }
 
   // ============================================================
+  // ============================================================
   // SET / UPDATE INTERACTION (PUT /api/v1/buyer/property-interactions/{propertyId})
   // ============================================================
 
   Future<BuyerPropertyInteraction> setInteraction(String propertyId, int status) async {
+    // The backend requires status 1 (Interested) before allowing status 2 (VisitRequested).
+    // Auto-initialize if interaction is not yet at status 1:
+    if (status == BuyerPropertyInteraction.statusVisitRequested) {
+      final existing = await getInteraction(propertyId);
+      if (existing == null || existing.currentStatus != BuyerPropertyInteraction.statusInterested) {
+        debugPrint('Auto-initializing status 1 (INTERESTED) before requesting visit (status 2)...');
+        try {
+          await _executeSetInteraction(propertyId, BuyerPropertyInteraction.statusInterested);
+        } catch (e) {
+          debugPrint('Pre-initializing status 1 warning: $e');
+        }
+      }
+    }
+
+    return _executeSetInteraction(propertyId, status);
+  }
+
+  Future<BuyerPropertyInteraction> _executeSetInteraction(String propertyId, int status) async {
     try {
       final headers = await _authHeaders();
       final url = '/api/v1/buyer/property-interactions/$propertyId';

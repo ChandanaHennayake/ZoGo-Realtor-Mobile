@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/services/buyer_property_interest_service.dart';
+import '../../data/services/buyer_property_interaction_service.dart';
+import '../../models/buyer_property_interaction.dart';
 import '../../models/property_interest.dart';
 
 class PropertyInterestSection extends StatefulWidget {
@@ -77,6 +79,21 @@ class _PropertyInterestSectionState extends State<PropertyInterestSection> {
 
     try {
       final updated = await _service.setInterest(widget.propertyId, status);
+      if (status == PropertyInterest.statusInterested) {
+        try {
+          await BuyerPropertyInteractionService().setInteraction(
+            widget.propertyId,
+            BuyerPropertyInteraction.statusInterested,
+          );
+        } catch (_) {}
+      } else if (status == PropertyInterest.statusNotInterested) {
+        try {
+          await BuyerPropertyInteractionService().setInteraction(
+            widget.propertyId,
+            BuyerPropertyInteraction.statusNotInterested,
+          );
+        } catch (_) {}
+      }
       if (!mounted) return;
       setState(() {
         _currentInterest = updated;

@@ -1,30 +1,38 @@
 import 'package:flutter/material.dart';
+import '../../data/services/buyer_offer_service.dart';
 import '../../data/services/buyer_property_interaction_service.dart';
+import '../../data/services/buyer_visit_service.dart';
 import '../../models/buyer_property_interaction.dart';
 
 class BuyerInteractionSection extends StatefulWidget {
   final String propertyId;
   final BuyerPropertyInteractionService? interactionService;
+  final BuyerVisitService? visitService;
+  final BuyerOfferService? offerService;
   final ValueChanged<BuyerPropertyInteraction?>? onInteractionChanged;
 
   const BuyerInteractionSection({
     super.key,
     required this.propertyId,
     this.interactionService,
+    this.visitService,
+    this.offerService,
     this.onInteractionChanged,
   });
 
   @override
   State<BuyerInteractionSection> createState() =>
-      _BuyerInteractionSectionState();
+      BuyerInteractionSectionState();
 }
 
-class _BuyerInteractionSectionState extends State<BuyerInteractionSection> {
+class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
   static const Color primaryCyan = Color(0xFF00C6D4);
   static const Color darkText = Color(0xFF1A1A1A);
   static const Color secondaryGray = Color(0xFF6B7280);
 
   late final BuyerPropertyInteractionService _service;
+  late final BuyerVisitService _visitService;
+  late final BuyerOfferService _offerService;
   bool _isLoading = true;
   bool _isUpdating = false;
   BuyerPropertyInteraction? _currentInteraction;
@@ -33,7 +41,13 @@ class _BuyerInteractionSectionState extends State<BuyerInteractionSection> {
   void initState() {
     super.initState();
     _service = widget.interactionService ?? BuyerPropertyInteractionService();
+    _visitService = widget.visitService ?? BuyerVisitService();
+    _offerService = widget.offerService ?? BuyerOfferService();
     _loadCurrentInteraction();
+  }
+
+  Future<void> reload() async {
+    await _loadCurrentInteraction();
   }
 
   Future<void> _loadCurrentInteraction() async {
@@ -274,13 +288,37 @@ class _BuyerInteractionSectionState extends State<BuyerInteractionSection> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _buildActionButton(
-                  label: 'Request Visit',
-                  icon: Icons.calendar_month_outlined,
-                  color: const Color(0xFF3B82F6),
-                  targetStatus: BuyerPropertyInteraction.statusVisitRequested,
-                  currentStatus: status,
-                  actionName: 'Visit requested',
+                OutlinedButton.icon(
+                  onPressed: _isUpdating || status == BuyerPropertyInteraction.statusVisitRequested
+                      ? null
+                      : _handleRequestVisit,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF3B82F6),
+                    side: BorderSide(
+                      color: status == BuyerPropertyInteraction.statusVisitRequested
+                          ? const Color(0xFF3B82F6)
+                          : const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                      width: status == BuyerPropertyInteraction.statusVisitRequested ? 2 : 1,
+                    ),
+                    backgroundColor: status == BuyerPropertyInteraction.statusVisitRequested
+                        ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
+                        : Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  icon: const Icon(Icons.calendar_month_outlined, size: 16, color: Color(0xFF3B82F6)),
+                  label: Text(
+                    status == BuyerPropertyInteraction.statusVisitRequested
+                        ? 'Visit Requested (Pending)'
+                        : 'Request Visit',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF3B82F6),
+                    ),
+                  ),
                 ),
                 _buildActionButton(
                   label: 'Request Documents',
@@ -290,13 +328,33 @@ class _BuyerInteractionSectionState extends State<BuyerInteractionSection> {
                   currentStatus: status,
                   actionName: 'Documents requested',
                 ),
-                _buildActionButton(
-                  label: 'Submit Offer',
-                  icon: Icons.local_offer_outlined,
-                  color: const Color(0xFFEC4899),
-                  targetStatus: BuyerPropertyInteraction.statusOfferSubmitted,
-                  currentStatus: status,
-                  actionName: 'Offer submitted',
+                OutlinedButton.icon(
+                  onPressed: _isUpdating ? null : _handleSubmitOffer,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFEC4899),
+                    side: BorderSide(
+                      color: status == BuyerPropertyInteraction.statusOfferSubmitted
+                          ? const Color(0xFFEC4899)
+                          : const Color(0xFFEC4899).withValues(alpha: 0.4),
+                      width: status == BuyerPropertyInteraction.statusOfferSubmitted ? 2 : 1,
+                    ),
+                    backgroundColor: status == BuyerPropertyInteraction.statusOfferSubmitted
+                        ? const Color(0xFFEC4899).withValues(alpha: 0.1)
+                        : Colors.transparent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  icon: const Icon(Icons.local_offer_outlined, size: 16, color: Color(0xFFEC4899)),
+                  label: Text(
+                    status == BuyerPropertyInteraction.statusOfferSubmitted
+                        ? 'Offer Submitted'
+                        : 'Submit Offer',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFEC4899),
+                    ),
+                  ),
                 ),
                 _buildActionButton(
                   label: 'Not Interested',
@@ -312,6 +370,429 @@ class _BuyerInteractionSectionState extends State<BuyerInteractionSection> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleRequestVisit() async {
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    String selectedSlot = 'Morning (09:00 - 12:00)';
+    final notesController = TextEditingController();
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            top: 24,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF3B82F6), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Schedule Property Visit',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: darkText),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Select Preferred Date',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 60)),
+                  );
+                  if (picked != null) {
+                    setModalState(() {
+                      selectedDate = picked;
+                    });
+                  }
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event, color: primaryCyan, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      const Spacer(),
+                      const Text('Change', style: TextStyle(color: primaryCyan, fontWeight: FontWeight.w700, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Preferred Time Slot',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  'Morning (09:00 - 12:00)',
+                  'Afternoon (13:00 - 16:00)',
+                  'Evening (16:00 - 18:00)',
+                ].map((slot) {
+                  final isSel = selectedSlot == slot;
+                  return ChoiceChip(
+                    label: Text(slot),
+                    selected: isSel,
+                    selectedColor: primaryCyan.withValues(alpha: 0.15),
+                    labelStyle: TextStyle(
+                      color: isSel ? primaryCyan : darkText,
+                      fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                    onSelected: (val) {
+                      if (val) {
+                        setModalState(() {
+                          selectedSlot = slot;
+                        });
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Notes or Questions for Agent (Optional)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: notesController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Interested in seeing parking space and title deeds...',
+                  hintStyle: const TextStyle(fontSize: 12, color: secondaryGray),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryCyan,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Confirm & Schedule Visit', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (result == true) {
+      setState(() {
+        _isUpdating = true;
+      });
+
+      try {
+        await _visitService.scheduleVisit(
+          propertyId: widget.propertyId,
+          scheduledAt: selectedDate,
+          timeSlot: selectedSlot,
+          buyerNotes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+        );
+
+        await _handleUpdateInteraction(
+          BuyerPropertyInteraction.statusVisitRequested,
+          'Visit requested',
+        );
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Visit scheduled for ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')} ($selectedSlot)'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to schedule visit: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isUpdating = false;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _handleSubmitOffer() async {
+    final amountController = TextEditingController();
+    final notesController = TextEditingController();
+    DateTime expiryDate = DateTime.now().add(const Duration(days: 7));
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            top: 24,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEC4899).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.local_offer_rounded, color: Color(0xFFEC4899), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Submit Formal Offer',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: darkText),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Offer Amount (LKR)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: 'e.g. 45000000',
+                  prefixText: 'LKR ',
+                  prefixStyle: const TextStyle(fontWeight: FontWeight.w700, color: darkText),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Offer Validity Expiry',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: expiryDate,
+                    firstDate: DateTime.now().add(const Duration(days: 1)),
+                    lastDate: DateTime.now().add(const Duration(days: 90)),
+                  );
+                  if (picked != null) {
+                    setModalState(() {
+                      expiryDate = picked;
+                    });
+                  }
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, color: Color(0xFFEC4899), size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Valid until: ${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      const Spacer(),
+                      const Text('Change', style: TextStyle(color: Color(0xFFEC4899), fontWeight: FontWeight.w700, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Proposal Terms or Contingencies (Optional)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: notesController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Subject to title clearance, 10% advance upon deed signing...',
+                  hintStyle: const TextStyle(fontSize: 12, color: secondaryGray),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEC4899),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    final raw = amountController.text.replaceAll(',', '').trim();
+                    final parsed = double.tryParse(raw);
+                    if (parsed == null || parsed <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a valid offer amount.')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(ctx, true);
+                  },
+                  child: const Text('Submit Offer to Seller', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (result == true) {
+      final amount = double.tryParse(amountController.text.replaceAll(',', '').trim()) ?? 0;
+      setState(() {
+        _isUpdating = true;
+      });
+
+      try {
+        await _offerService.submitOffer(
+          propertyId: widget.propertyId,
+          offerAmount: amount,
+          buyerNotes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+          expiresAt: expiryDate,
+        );
+
+        await _handleUpdateInteraction(
+          BuyerPropertyInteraction.statusOfferSubmitted,
+          'Offer submitted',
+        );
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Offer of LKR ${amount.toStringAsFixed(0)} submitted successfully!'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit offer: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isUpdating = false;
+          });
+        }
+      }
+    }
   }
 
   Widget _buildWorkflowSteps(int currentStatus) {

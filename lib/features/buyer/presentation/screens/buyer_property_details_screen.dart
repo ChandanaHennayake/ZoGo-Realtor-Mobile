@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../data/services/buyer_favorite_service.dart';
+import '../../data/services/buyer_property_interest_service.dart';
 import '../../data/services/buyer_property_service.dart';
 import '../../models/buyer_property_details.dart';
 import '../../models/buyer_property_list_item.dart';
+import '../../models/property_interest.dart';
+import '../../../chat/presentation/screens/chat_screen.dart';
 import '../widgets/buyer_interaction_section.dart';
 import '../widgets/property_interest_section.dart';
 
@@ -39,6 +42,9 @@ class _BuyerPropertyDetailsScreenState
 
   bool _isFavorite = false;
   bool _isTogglingFavorite = false;
+  bool _isInterested = false;
+  final GlobalKey<BuyerInteractionSectionState> _interactionKey =
+      GlobalKey<BuyerInteractionSectionState>();
 
   // Feature icon mapping
   static const Map<int, IconData> _featureIcons = {
@@ -69,6 +75,18 @@ class _BuyerPropertyDetailsScreenState
     }
     _loadPropertyDetails();
     _loadFavoriteState();
+    _loadInitialInterest();
+  }
+
+  Future<void> _loadInitialInterest() async {
+    try {
+      final interest = await BuyerPropertyInterestService().getInterest(widget.propertyId);
+      if (mounted) {
+        setState(() {
+          _isInterested = interest?.status == PropertyInterest.statusInterested;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -208,6 +226,7 @@ class _BuyerPropertyDetailsScreenState
         ],
       ),
       body: _buildBody(),
+      bottomNavigationBar: _details == null ? null : _buildBottomChatBar(_details!),
     );
   }
 
@@ -312,12 +331,21 @@ class _BuyerPropertyDetailsScreenState
                   // PHASE 3: Property Interest Section
                   PropertyInterestSection(
                     propertyId: p.propertyId,
+                    onInterestChanged: (interest) {
+                      if (mounted) {
+                        setState(() {
+                          _isInterested = interest?.status == PropertyInterest.statusInterested;
+                        });
+                        _interactionKey.currentState?.reload();
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 20),
 
                   // PHASE 4: Buyer Property Interaction Section
                   BuyerInteractionSection(
+                    key: _interactionKey,
                     propertyId: p.propertyId,
                   ),
                 ],
@@ -325,6 +353,108 @@ class _BuyerPropertyDetailsScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBottomChatBar(BuyerPropertyDetails p) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: _isInterested
+            ? Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: primaryCyan.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.support_agent_rounded, color: primaryCyan, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Assigned Realtor Available',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: darkText,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Direct chat active for interested buyer',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                            propertyId: p.propertyId,
+                            propertyTitle: p.title,
+                            recipientId: 'agent_${p.districtId}',
+                            recipientName: 'Assigned Realtor (${p.districtName})',
+                            recipientRole: 'agent',
+                            currentUserRole: 'buyer',
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryCyan,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.chat_rounded, size: 16),
+                    label: const Text(
+                      'Chat with Agent',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              )
+            : Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFF94A3B8)),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Direct agent chat unlocks when you mark "Interested" above.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
