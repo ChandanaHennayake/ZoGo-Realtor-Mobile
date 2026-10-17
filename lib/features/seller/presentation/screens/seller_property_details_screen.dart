@@ -303,13 +303,13 @@ class _SellerPropertyDetailsScreenState
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.publish, color: primaryCyan),
+            Icon(Icons.send_rounded, color: primaryCyan),
             SizedBox(width: 8),
-            Text('Publish Property'),
+            Text('Submit for Approval'),
           ],
         ),
         content: const Text(
-          'Are you ready to publish this property listing? It will become visible to all buyers and renters.',
+          'Are you ready to submit this property listing for admin review and legal verification? Once approved, it will be published to all buyers.',
         ),
         actions: [
           TextButton(
@@ -323,7 +323,7 @@ class _SellerPropertyDetailsScreenState
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Publish Now'),
+            child: const Text('Submit Now'),
           ),
         ],
       ),
@@ -336,14 +336,14 @@ class _SellerPropertyDetailsScreenState
     });
 
     try {
-      await _sellerService.publishProperty(widget.propertyId);
+      await _sellerService.submitProperty(widget.propertyId);
 
       if (!mounted) return;
 
       setState(() {
         _isPublishing = false;
-        _property['status'] = 2; // Published
-        _property['statusName'] = 'Published';
+        _property['status'] = 4; // Pending Approval
+        _property['statusName'] = 'Pending Approval';
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -353,11 +353,11 @@ class _SellerPropertyDetailsScreenState
               Icon(Icons.check_circle, color: Colors.white),
               SizedBox(width: 8),
               Expanded(
-                child: Text('Property published successfully and is now Live!'),
+                child: Text('Property submitted for admin review successfully!'),
               ),
             ],
           ),
-          backgroundColor: Colors.green.shade600,
+          backgroundColor: Colors.deepPurple,
           duration: const Duration(seconds: 3),
         ),
       );
@@ -1759,9 +1759,9 @@ class _SellerPropertyDetailsScreenState
                             strokeWidth: 2,
                           ),
                         )
-                      : const Icon(Icons.publish, color: Colors.white),
+                      : const Icon(Icons.send_rounded, color: Colors.white),
                   label: Text(
-                    _isPublishing ? 'Publishing...' : 'Publish Listing',
+                    _isPublishing ? 'Submitting...' : 'Submit for Review',
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       color: Colors.white,

@@ -10,6 +10,14 @@ class ApiConstants {
   static const String buyerFavorites = '/api/v1/buyer/favorites';
   static const String buyerInterests = '/api/v1/buyer/property-interests';
   static const String buyerInteractions = '/api/v1/buyer/property-interactions';
+  static const String visits = '/api/v1/visits';
+  static const String myVisits = '/api/v1/visits/my';
+  static const String offers = '/api/v1/offers';
+  static const String myOffers = '/api/v1/offers/my';
+  static const String transactions = '/api/v1/transactions';
+  static const String notifications = '/api/v1/notifications';
+  static const String notificationsUnreadCount = '/api/v1/notifications/unread-count';
+  static const String notificationsReadAll = '/api/v1/notifications/read-all';
 
   // Agent endpoints
   static const String agentDashboard = '/api/v1/agent/dashboard';

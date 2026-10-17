@@ -24,7 +24,7 @@ class AgentStatCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         child: Ink(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -32,16 +32,20 @@ class AgentStatCard extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.18),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: endColor.withValues(alpha: 0.35),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
+                color: endColor.withValues(alpha: 0.28),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -50,47 +54,52 @@ class AgentStatCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       icon,
                       color: Colors.white,
-                      size: 24,
+                      size: 20,
                     ),
                   ),
                   if (onTap != null)
                     Icon(
                       Icons.arrow_forward_ios_rounded,
                       color: Colors.white.withValues(alpha: 0.7),
-                      size: 14,
+                      size: 12,
                     ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 6),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    count.toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      height: 1.1,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      count.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        height: 1.1,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.95),
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

@@ -1123,6 +1123,36 @@ class SellerService {
     }
   }
 
+  Future<bool> submitProperty(String propertyId) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception('Authentication token not found. Please log in.');
+      }
+
+      final url = '/api/v1/properties/$propertyId/submit';
+      final response = await _dio.post(
+        url,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(
+          e.response?.data,
+          e.response?.statusCode,
+          'Failed to submit property for approval: ${e.message}',
+        ),
+      );
+    }
+  }
+
   Future<bool> updateProperty(
     String propertyId,
     Map<String, dynamic> propertyData,

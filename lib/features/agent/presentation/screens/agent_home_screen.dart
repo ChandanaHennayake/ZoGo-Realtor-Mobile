@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../auth/presentation/screens/get_started_screen.dart';
+import '../../../buyer/data/services/user_notification_service.dart';
+import '../../../buyer/presentation/screens/buyer_property_details_screen.dart';
+import '../../../buyer/presentation/widgets/notifications_sheet.dart';
+import '../../../chat/presentation/screens/chat_screen.dart';
 import '../../data/services/agent_service.dart';
 import '../../models/agent_dashboard_model.dart';
 import '../../models/agent_property_model.dart';
@@ -24,6 +28,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
 
   final AgentService _agentService = AgentService();
   final SecureStorageService _secureStorage = SecureStorageService();
+  final UserNotificationService _notificationService = UserNotificationService();
 
   static const Color primaryCyan = Color(0xFF00C6D4);
   static const Color darkCyan = Color(0xFF008D97);
@@ -37,6 +42,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   bool _isLoadingInterested = true;
   bool _isLoadingVisits = true;
   bool _isLoadingDocs = true;
+  int _unreadNotifications = 0;
 
   String? _markingVisitedPropertyId;
 
@@ -64,7 +70,17 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
       _loadInterested(),
       _loadVisits(),
       _loadDocuments(),
+      _loadUnreadNotifications(),
     ]);
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    final count = await _notificationService.getUnreadCount();
+    if (mounted) {
+      setState(() {
+        _unreadNotifications = count;
+      });
+    }
   }
 
   Future<void> _loadDashboard() async {
@@ -184,6 +200,32 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     }
   }
 
+  void _openChatWithBuyer(AgentPropertyItem item) {
+    if (item.buyerUserId.isEmpty && item.buyerName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No buyer details available for this property.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          propertyId: item.propertyId,
+          propertyTitle: item.title,
+          recipientId: item.buyerUserId,
+          recipientName: item.buyerName,
+          recipientPhone: item.buyerPhone,
+          recipientRole: 'buyer',
+          currentUserRole: 'agent',
+        ),
+      ),
+    );
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -224,17 +266,15 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: [
-            _buildDashboardTab(),
-            _buildInterestedTab(),
-            _buildVisitsTab(),
-            _buildDocumentsTab(),
-            _buildProfileTab(),
-          ],
-        ),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _buildDashboardTab(),
+          _buildInterestedTab(),
+          _buildVisitsTab(),
+          _buildDocumentsTab(),
+          _buildProfileTab(),
+        ],
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
@@ -244,6 +284,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   // TAB 0: DASHBOARD
   // ============================================================
   Widget _buildDashboardTab() {
+    final topPadding = MediaQuery.of(context).padding.top;
     return RefreshIndicator(
       onRefresh: _refreshAll,
       color: primaryCyan,
@@ -253,7 +294,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
           // Header
           SliverToBoxAdapter(
             child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              padding: EdgeInsets.fromLTRB(20, topPadding + 16, 20, 24),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   colors: [primaryCyan, darkCyan],
@@ -269,45 +310,42 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.real_estate_agent_rounded, color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ZoGo Realtor',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.3,
+                              ),
                             ),
-                            child: const Icon(Icons.real_estate_agent_rounded, color: Colors.white, size: 22),
-                          ),
-                          const SizedBox(width: 10),
-                          const Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'ZoGo Realtor',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.3,
-                                ),
+                            Text(
+                              'Agent Portal',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
-                              Text(
-                                'Agent Portal',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.22),
                           borderRadius: BorderRadius.circular(20),
@@ -315,10 +353,10 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.verified_rounded, size: 14, color: Colors.white),
+                            Icon(Icons.verified_rounded, size: 13, color: Colors.white),
                             SizedBox(width: 4),
                             Text(
-                              'Verified Agent',
+                              'Verified',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
@@ -327,6 +365,44 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(width: 6),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(6),
+                            icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+                            onPressed: () async {
+                              await NotificationsSheet.show(context);
+                              _loadUnreadNotifications();
+                            },
+                          ),
+                          if (_unreadNotifications > 0)
+                            Positioned(
+                              right: 2,
+                              top: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.redAccent,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                child: Center(
+                                  child: Text(
+                                    _unreadNotifications > 9 ? '9+' : '$_unreadNotifications',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -388,7 +464,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
               crossAxisCount: 2,
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              childAspectRatio: 1.15,
+              childAspectRatio: 0.98,
               children: [
                 AgentStatCard(
                   title: 'Interested',
@@ -485,39 +561,45 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 22),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
         onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
+            subtitle: Text(
+              subtitle,
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
+          ),
+        ),
       ),
     );
   }
@@ -556,7 +638,21 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                     padding: const EdgeInsets.all(20),
                     itemCount: _interestedProperties.length,
                     itemBuilder: (ctx, i) {
-                      return AgentPropertyCard(item: _interestedProperties[i]);
+                      final item = _interestedProperties[i];
+                      return AgentPropertyCard(
+                        item: item,
+                        isMarkingVisited: _markingVisitedPropertyId == item.propertyId,
+                        onMarkVisited: () => _handleMarkVisited(item),
+                        onChatWithBuyer: () => _openChatWithBuyer(item),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId),
+                            ),
+                          );
+                        },
+                      );
                     },
                   ),
                 ),
@@ -602,6 +698,15 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         item: item,
                         isMarkingVisited: _markingVisitedPropertyId == item.propertyId,
                         onMarkVisited: () => _handleMarkVisited(item),
+                        onChatWithBuyer: () => _openChatWithBuyer(item),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -643,7 +748,19 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                     padding: const EdgeInsets.all(20),
                     itemCount: _pendingDocuments.length,
                     itemBuilder: (ctx, i) {
-                      return AgentPropertyCard(item: _pendingDocuments[i]);
+                      final item = _pendingDocuments[i];
+                      return AgentPropertyCard(
+                        item: item,
+                        onChatWithBuyer: () => _openChatWithBuyer(item),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId),
+                            ),
+                          );
+                        },
+                      );
                     },
                   ),
                 ),

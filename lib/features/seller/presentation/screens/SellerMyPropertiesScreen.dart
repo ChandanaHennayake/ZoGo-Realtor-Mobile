@@ -295,6 +295,20 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
         text: Colors.orange.shade800,
         icon: Icons.pause_circle_outline_rounded,
       );
+    } else if (statusId == 9 || lower.contains('changes')) {
+      return (
+        bg: Colors.pink.shade50,
+        border: Colors.pink.shade400,
+        text: Colors.pink.shade800,
+        icon: Icons.assignment_late_rounded,
+      );
+    } else if (statusId == 10 || lower.contains('rejected')) {
+      return (
+        bg: Colors.red.shade50,
+        border: Colors.red.shade400,
+        text: Colors.red.shade800,
+        icon: Icons.cancel_rounded,
+      );
     } else {
       return (
         bg: const Color(0xFFF3F4F6),
@@ -375,15 +389,15 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
     }
   }
 
-  Future<void> _publishDraftProperty(String propertyId) async {
+  Future<void> _submitPropertyForApproval(String propertyId) async {
     try {
-      final success = await _sellerService.publishProperty(propertyId);
+      final success = await _sellerService.submitProperty(propertyId);
       if (!mounted) return;
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Property published successfully and is now live!'),
-            backgroundColor: Colors.green,
+            content: Text('Property submitted for admin review successfully!'),
+            backgroundColor: Colors.deepPurple,
           ),
         );
         _loadProperties();
@@ -392,7 +406,7 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to publish property: $e'),
+          content: Text('Failed to submit property: $e'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -641,7 +655,7 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      _publishDraftProperty(propertyId);
+                      _submitPropertyForApproval(propertyId);
                     },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -651,7 +665,7 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                       ),
                     ),
                     child: const Text(
-                      'Publish Now',
+                      'Submit for Review',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -1425,9 +1439,9 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // 1-Click Publish Button
+                      // 1-Click Submit for Review Button
                       ElevatedButton.icon(
-                        onPressed: () => _publishDraftProperty(propertyId),
+                        onPressed: () => _submitPropertyForApproval(propertyId),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryCyan,
                           foregroundColor: Colors.white,
@@ -1437,9 +1451,9 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        icon: const Icon(Icons.cloud_upload_outlined, size: 16),
+                        icon: const Icon(Icons.send_rounded, size: 16),
                         label: const Text(
-                          'Publish',
+                          'Submit',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

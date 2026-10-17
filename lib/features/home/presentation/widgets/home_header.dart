@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../buyer/presentation/widgets/notifications_sheet.dart';
 
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
@@ -50,7 +51,7 @@ class HomeHeader extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   IconButton(
-                    onPressed: () {},
+                    onPressed: () => NotificationsSheet.show(context),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     icon: const Icon(
