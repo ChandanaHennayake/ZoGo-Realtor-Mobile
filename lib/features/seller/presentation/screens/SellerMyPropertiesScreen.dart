@@ -213,12 +213,15 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
   }
 
   bool _isPropertyDraft(Map<String, dynamic> property) {
-    final rawStatus = property['status'] ?? property['propertyStatus'] ?? property['listingStatus'];
-    if (rawStatus == null) return true;
-    if (rawStatus == 1 || rawStatus == '1' || rawStatus.toString().toLowerCase() == 'draft') {
-      return true;
-    }
-    return false;
+    final rawStatus = (property['status'] as num?)?.toInt() ?? 1;
+    final rawName = (property['statusName'] ?? '').toString().toLowerCase();
+    return rawStatus == 1 || rawName == 'draft';
+  }
+
+  bool _isChangesRequested(Map<String, dynamic> property) {
+    final rawStatus = (property['status'] as num?)?.toInt() ?? 1;
+    final rawName = (property['statusName'] ?? '').toString().toLowerCase();
+    return rawStatus == 9 || rawName.contains('changes');
   }
 
   int _getStatusCount(int statusId) {
@@ -413,7 +416,76 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
     }
   }
 
-  void _showDraftActionsSheet(Map<String, dynamic> property) {
+  String _getStepName(int step) {
+    switch (step) {
+      case 1:
+        return 'Basic Details';
+      case 2:
+        return 'Property Features';
+      case 3:
+        return 'Property Amenities';
+      case 4:
+        return 'Financials & Charges';
+      case 5:
+        return 'Legal Details';
+      case 6:
+        return 'Official Documents';
+      case 7:
+        return 'Photos & Media';
+      default:
+        return 'Basic Details';
+    }
+  }
+
+  Future<void> _resumeDraft(Map<String, dynamic> property, {int? explicitStep}) async {
+    final propertyId = _read(property, ['propertyId', 'id']);
+    final typeId = (property['propertyTypeId'] as num?)?.toInt() ?? 1;
+    const propertyTypes = {
+      1: 'House',
+      2: 'Apartment',
+      3: 'Land',
+      4: 'Commercial',
+      5: 'Villa',
+    };
+    final typeName = propertyTypes[typeId] ?? 'Property';
+
+    final step = explicitStep ?? await _sellerService.getDraftStep(propertyId);
+    Widget targetScreen;
+    switch (step) {
+      case 2:
+        targetScreen = PropertyFeaturesScreen(propertyId: propertyId, propertyType: typeName);
+        break;
+      case 3:
+        targetScreen = PropertyAmenitiesScreen(propertyId: propertyId, propertyType: typeName);
+        break;
+      case 4:
+        targetScreen = PropertyFinancialsScreen(propertyId: propertyId, propertyType: typeName);
+        break;
+      case 5:
+        targetScreen = PropertyLegalDetailsScreen(propertyId: propertyId, propertyType: typeName);
+        break;
+      case 6:
+        targetScreen = PropertyDocumentsScreen(propertyId: propertyId, propertyType: typeName);
+        break;
+      case 7:
+        targetScreen = PropertyMediaScreen(propertyId: propertyId, propertyType: typeName);
+        break;
+      case 1:
+      default:
+        targetScreen = PropertyBasicScreen(propertyId: propertyId, initialData: property);
+        break;
+    }
+
+    if (!mounted) return;
+
+    final res = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => targetScreen),
+    );
+    if (res == true || mounted) _loadProperties();
+  }
+
+  Future<void> _showDraftActionsSheet(Map<String, dynamic> property) async {
     final propertyId = _read(property, ['propertyId', 'id']);
     final title = _read(property, ['title', 'propertyTitle', 'name'], fallback: 'Draft Property');
     final typeId = (property['propertyTypeId'] as num?)?.toInt() ?? 1;
@@ -427,6 +499,9 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
     final statusId = (property['status'] as num?)?.toInt() ?? 1;
     final statusName = _getPropertyStatusName(property);
     final statusVisuals = _getStatusVisuals(statusId, statusName);
+    final lastStep = await _sellerService.getDraftStep(propertyId);
+
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -486,12 +561,40 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 14),
+            // Prominent 1-click Resume Button
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _resumeDraft(property, explicitStep: lastStep);
+                },
+                icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
+                label: Text(
+                  'Resume Where You Stopped (Step $lastStep: ${_getStepName(lastStep)})',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryCyan,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
             const Text(
-              'Select any section below to start editing or resume your draft:',
+              'Or choose a specific section below to edit:',
               style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildSectionTile(
               stepNumber: 1,
               title: 'Basic Details',
@@ -664,9 +767,9 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: const Text(
-                      'Submit for Review',
-                      style: TextStyle(
+                    child: Text(
+                      statusId == 9 ? 'Resubmit for Review' : 'Submit for Review',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1215,6 +1318,10 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
     final statusName = _getPropertyStatusName(property);
     final statusVisuals = _getStatusVisuals(statusId, statusName);
     final typeId = (property['propertyTypeId'] as num?)?.toInt() ?? 1;
+    final adminNotes = property['adminNotes']?.toString() ?? property['adminFeedback']?.toString();
+    final rejectionReason = property['rejectionReason']?.toString();
+    final isChangesRequested = _isChangesRequested(property);
+    final isRejected = statusId == 10 || statusName.toLowerCase().contains('reject');
 
     const propertyTypes = {
       1: 'House',
@@ -1409,6 +1516,88 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                   ],
                 ),
 
+                if (isChangesRequested && adminNotes != null && adminNotes.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber.shade400),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.assignment_late_rounded, size: 16, color: Colors.amber.shade900),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Changes Requested by Admin:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.amber.shade900,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          adminNotes.trim(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.amber.shade900,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                if (isRejected && rejectionReason != null && rejectionReason.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.red.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.cancel_rounded, size: 16, color: Colors.red.shade800),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Listing Declined by Admin:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.red.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          rejectionReason.trim(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red.shade900,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 12),
                 const Divider(height: 1),
                 const SizedBox(height: 10),
@@ -1418,9 +1607,9 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     if (isDraft) ...[
-                      // Continue Editing Button
+                      // Resume Editing Draft Button
                       OutlinedButton.icon(
-                        onPressed: () => _showDraftActionsSheet(property),
+                        onPressed: () => _resumeDraft(property),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           side: const BorderSide(color: primaryCyan),
@@ -1428,9 +1617,9 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        icon: const Icon(Icons.edit_note, size: 16, color: primaryCyan),
+                        icon: const Icon(Icons.play_circle_outline_rounded, size: 16, color: primaryCyan),
                         label: const Text(
-                          'Edit Draft',
+                          'Resume Draft',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -1454,6 +1643,48 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                         icon: const Icon(Icons.send_rounded, size: 16),
                         label: const Text(
                           'Submit',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ] else if (isChangesRequested) ...[
+                      // Changes Requested: Allow Edit & Direct Resubmit
+                      OutlinedButton.icon(
+                        onPressed: () => _showDraftActionsSheet(property),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          side: BorderSide(color: Colors.amber.shade700, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: Icon(Icons.edit_note_rounded, size: 16, color: Colors.amber.shade900),
+                        label: Text(
+                          'Update Sections',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () => _submitPropertyForApproval(propertyId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: const Icon(Icons.send_rounded, size: 16),
+                        label: const Text(
+                          'Resubmit',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

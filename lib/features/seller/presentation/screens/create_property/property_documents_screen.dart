@@ -3,71 +3,59 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_media_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_legal_details_screen.dart';
 
 class PropertyDocumentType {
   final int id;
+  final String code;
   final String name;
   final String description;
   final IconData icon;
 
   const PropertyDocumentType({
     required this.id,
+    required this.code,
     required this.name,
     required this.description,
     required this.icon,
   });
+
+  factory PropertyDocumentType.fromMap(Map<String, dynamic> map) {
+    final id = (map['id'] as num?)?.toInt() ?? 0;
+    final code = map['code']?.toString() ?? '';
+    final name = map['name']?.toString() ?? 'Document';
+    final desc = map['description']?.toString() ?? 'Official property verification document';
+
+    IconData icon = Icons.description_outlined;
+    final c = '$code $name'.toUpperCase();
+    if (c.contains('DEED') || c.contains('TITLE')) {
+      icon = Icons.description_outlined;
+    } else if (c.contains('SURVEY') || c.contains('PLAN') || c.contains('MAP')) {
+      icon = Icons.map_outlined;
+    } else if (c.contains('BUILD') || c.contains('ARCHITECT')) {
+      icon = Icons.architecture_outlined;
+    } else if (c.contains('COC') || c.contains('CONFORM')) {
+      icon = Icons.verified_outlined;
+    } else if (c.contains('STREET') || c.contains('VESTING') || c.contains('CLEAR')) {
+      icon = Icons.alt_route_outlined;
+    } else if (c.contains('TAX') || c.contains('RECEIPT') || c.contains('RATES')) {
+      icon = Icons.receipt_long_outlined;
+    } else if (c.contains('POA') || c.contains('ATTORNEY')) {
+      icon = Icons.assignment_ind_outlined;
+    } else {
+      icon = Icons.folder_open_outlined;
+    }
+
+    return PropertyDocumentType(
+      id: id,
+      code: code,
+      name: name,
+      description: desc,
+      icon: icon,
+    );
+  }
 }
 
-const List<PropertyDocumentType> kPropertyDocumentTypes = [
-  PropertyDocumentType(
-    id: 1,
-    name: 'Title Deed / Deed of Transfer',
-    description: 'Primary legal proof of ownership registered with land registry',
-    icon: Icons.description_outlined,
-  ),
-  PropertyDocumentType(
-    id: 2,
-    name: 'Survey Plan / Cadastral Map',
-    description: 'Boundary demarcations and land extent by a licensed surveyor',
-    icon: Icons.map_outlined,
-  ),
-  PropertyDocumentType(
-    id: 3,
-    name: 'Building Plan Approval',
-    description: 'Local Municipal / Council approved building architectural plans',
-    icon: Icons.architecture_outlined,
-  ),
-  PropertyDocumentType(
-    id: 4,
-    name: 'Certificate of Conformity (COC)',
-    description: 'Local authority completion and compliance certificate',
-    icon: Icons.verified_outlined,
-  ),
-  PropertyDocumentType(
-    id: 5,
-    name: 'Non-Vesting / Street Line Certificate',
-    description: 'Clearance verifying property is free from road widening reservations',
-    icon: Icons.alt_route_outlined,
-  ),
-  PropertyDocumentType(
-    id: 6,
-    name: 'Tax & Rates Assessment Receipts',
-    description: 'Municipal council assessment receipts and paid tax records',
-    icon: Icons.receipt_long_outlined,
-  ),
-  PropertyDocumentType(
-    id: 7,
-    name: 'Power of Attorney',
-    description: 'Registered Power of Attorney if signing on behalf of an owner',
-    icon: Icons.assignment_ind_outlined,
-  ),
-  PropertyDocumentType(
-    id: 8,
-    name: 'Other Supporting Document',
-    description: 'Valuation report, NIC copy, condominium declaration, etc.',
-    icon: Icons.folder_open_outlined,
-  ),
-];
 
 class PropertyDocumentsScreen extends StatefulWidget {
   final String propertyId;
@@ -98,7 +86,7 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
   File? _selectedFile;
   String? _selectedFileName;
   int _selectedFileSize = 0;
-
+  List<PropertyDocumentType> _documentTypes = [];
   List<Map<String, dynamic>> _documents = [];
 
   @override
@@ -113,10 +101,20 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
     });
 
     try {
-      final docs = await _sellerService.getPropertyDocuments(widget.propertyId);
+      final futures = await Future.wait([
+        _sellerService.getDocumentTypes(),
+        _sellerService.getPropertyDocuments(widget.propertyId),
+      ]);
+
+      final masterTypes = futures[0];
+      _documentTypes = masterTypes.map((m) => PropertyDocumentType.fromMap(m)).toList();
+      _documents = futures[1];
+
+      if (_documentTypes.isNotEmpty && !_documentTypes.any((t) => t.id == _selectedTypeId)) {
+        _selectedTypeId = _documentTypes.first.id;
+      }
       if (!mounted) return;
       setState(() {
-        _documents = docs;
         _isLoading = false;
       });
     } catch (e) {
@@ -325,7 +323,9 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
     }
   }
 
-  void _proceedToMedia() {
+  void _proceedToMedia() async {
+    await _sellerService.setDraftStep(widget.propertyId, 7);
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -350,10 +350,11 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
   }
 
   PropertyDocumentType _getTypeInfo(int typeId) {
-    return kPropertyDocumentTypes.firstWhere(
+    return _documentTypes.firstWhere(
       (t) => t.id == typeId,
       orElse: () => PropertyDocumentType(
         id: typeId,
+        code: 'DOC',
         name: 'Document #$typeId',
         description: 'Property verification document',
         icon: Icons.insert_drive_file_outlined,
@@ -459,6 +460,81 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
                           const SizedBox(height: 18),
                           _buildPropertyTypeCard(typeName),
                           const SizedBox(height: 24),
+
+                          // Document Workflow Notification Banner
+                          if (_documents.any((d) => (d['status'] as num?)?.toInt() == 4)) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.red.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 24),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Action Required: Document Rejected',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.red.shade900,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'One or more documents require correction. Please review the reason below and tap Resubmit.',
+                                          style: TextStyle(fontSize: 12, color: Colors.red.shade800),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ] else if (_documents.isNotEmpty && _documents.every((d) => (d['status'] as num?)?.toInt() == 3)) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.verified_rounded, color: Colors.green.shade700, size: 24),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'All Documents Verified',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green.shade900,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'All required property documents have been verified and approved by the assigned agent.',
+                                          style: TextStyle(fontSize: 12, color: Colors.green.shade800),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
 
                           // Uploader Section
                           _buildUploadCard(),
@@ -609,11 +685,12 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Property ID: ${widget.propertyId.length > 12 ? '${widget.propertyId.substring(0, 12)}...' : widget.propertyId}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
+                const Text(
+                  'Step 6 of 7 • Legal Verification Documents',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -691,7 +768,7 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
                 value: _selectedTypeId,
                 isExpanded: true,
                 icon: const Icon(Icons.keyboard_arrow_down, color: primaryColor),
-                items: kPropertyDocumentTypes.map((type) {
+                items: _documentTypes.map((type) {
                   return DropdownMenuItem<int>(
                     value: type.id,
                     child: Row(
@@ -932,12 +1009,18 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
         fileName.toLowerCase().endsWith('.jpeg') ||
         fileName.toLowerCase().endsWith('.png');
 
+    final rejectionReason = doc['rejectionReason']?.toString();
+    final isRejected = (status is num && status.toInt() == 4) ||
+        (statusName != null && statusName.toLowerCase().contains('reject'));
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: isRejected ? Colors.red.shade300 : Colors.grey.shade200,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -946,84 +1029,150 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: isPdf
-                ? Colors.red.shade50
-                : isImage
-                    ? Colors.teal.shade50
-                    : Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            isPdf
-                ? Icons.picture_as_pdf_outlined
-                : isImage
-                    ? Icons.image_outlined
-                    : Icons.description_outlined,
-            color: isPdf
-                ? Colors.red.shade700
-                : isImage
-                    ? Colors.teal.shade700
-                    : Colors.blue.shade700,
-          ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                typeInfo.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isPdf
+                    ? Colors.red.shade50
+                    : isImage
+                        ? Colors.teal.shade50
+                        : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isPdf
+                    ? Icons.picture_as_pdf_outlined
+                    : isImage
+                        ? Icons.image_outlined
+                        : Icons.description_outlined,
+                color: isPdf
+                    ? Colors.red.shade700
+                    : isImage
+                        ? Colors.teal.shade700
+                        : Colors.blue.shade700,
+              ),
+            ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    typeInfo.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
                 ),
+                const SizedBox(width: 6),
+                _buildStatusBadge(status, statusName),
+              ],
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    fileSize,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 6),
-            _buildStatusBadge(status, statusName),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                fileName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                fileSize,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-              ),
-            ],
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.download_outlined, color: primaryColor),
+                  tooltip: 'Download',
+                  onPressed: () => _downloadOrViewDocument(doc),
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                  tooltip: 'Delete',
+                  onPressed: () => _confirmDeleteDocument(doc),
+                ),
+              ],
+            ),
           ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.download_outlined, color: primaryColor),
-              tooltip: 'Download',
-              onPressed: () => _downloadOrViewDocument(doc),
+          if (isRejected)
+            Container(
+              margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Correction Required:',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.red.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          (rejectionReason != null && rejectionReason.trim().isNotEmpty)
+                              ? rejectionReason
+                              : 'Document was rejected. Please re-upload a clear and valid copy.',
+                          style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedTypeId = typeId;
+                      });
+                      _pickDocument();
+                    },
+                    icon: const Icon(Icons.refresh_rounded, size: 14),
+                    label: const Text(
+                      'Resubmit',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red.shade800,
+                      backgroundColor: Colors.white,
+                      side: BorderSide(color: Colors.red.shade300),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            IconButton(
-              icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
-              tooltip: 'Delete',
-              onPressed: () => _confirmDeleteDocument(doc),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -1055,7 +1204,7 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
 
   Widget _buildBottomButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -1069,16 +1218,67 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
       child: Row(
         children: [
           Expanded(
-            flex: 1,
+            flex: 2,
             child: SizedBox(
-              height: 52,
-              child: OutlinedButton(
+              height: 50,
+              child: OutlinedButton.icon(
                 onPressed: () {
                   if (Navigator.canPop(context)) {
-                    Navigator.pop(context, true);
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PropertyLegalDetailsScreen(
+                          propertyId: widget.propertyId,
+                          propertyType: widget.propertyType,
+                        ),
+                      ),
+                    );
                   }
                 },
+                icon: const Icon(Icons.arrow_back, size: 15),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Previous',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 50,
+              child: OutlinedButton(
+                onPressed: () async {
+                  await _sellerService.setDraftStep(widget.propertyId, 6);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Documents saved to listing draft.'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   side: const BorderSide(color: primaryColor, width: 1.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -1089,7 +1289,7 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
                   child: Text(
                     'Save & Exit',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: primaryColor,
                     ),
@@ -1098,14 +1298,15 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            flex: 1,
+            flex: 3,
             child: SizedBox(
-              height: 52,
+              height: 50,
               child: ElevatedButton(
                 onPressed: _proceedToMedia,
                 style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
                   elevation: 0,
@@ -1118,18 +1319,21 @@ class _PropertyDocumentsScreenState extends State<PropertyDocumentsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: Text(
-                        'Next: Media',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Save & Next',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
                     SizedBox(width: 4),
-                    Icon(Icons.arrow_forward, size: 16),
+                    Icon(Icons.arrow_forward, size: 15),
                   ],
                 ),
               ),

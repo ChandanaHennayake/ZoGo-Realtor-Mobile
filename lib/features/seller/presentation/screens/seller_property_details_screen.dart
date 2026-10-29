@@ -48,36 +48,104 @@ class _SellerPropertyDetailsScreenState
   Map<String, dynamic>? _financials;
   Map<String, dynamic>? _legalDetails;
   List<Map<String, dynamic>> _documents = [];
+  Map<String, dynamic>? _apartmentDetails;
+
+  List<Map<String, dynamic>> _propertyTypesList = [];
+  List<Map<String, dynamic>> _listingTypesList = [];
+  List<Map<String, dynamic>> _apartmentTypesList = [];
+  List<Map<String, dynamic>> _condominiumsList = [];
+  List<Map<String, dynamic>> _viewTypesList = [];
+  List<Map<String, dynamic>> _furnishingTypesList = [];
+  List<Map<String, dynamic>> _ownershipTypesList = [];
+  List<Map<String, dynamic>> _documentTypesList = [];
 
   int _currentImageIndex = 0;
   final PageController _pageController = PageController();
 
-  static const Map<int, String> _propertyTypes = {
-    1: 'House',
-    2: 'Apartment',
-    3: 'Land',
-    4: 'Commercial',
-  };
+  String _getPropertyTypeName(int? id) {
+    if (id == null) return 'Property';
+    final match = _propertyTypesList.firstWhere(
+      (t) => (t['id'] as num?)?.toInt() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    if (match.isNotEmpty && match['name'] != null) return match['name'].toString();
+    return _property['propertyTypeName']?.toString() ?? 'Property';
+  }
 
-  static const Map<int, String> _listingTypes = {
-    1: 'For Sale',
-    2: 'For Rent',
-  };
+  String _getListingTypeName(int? id) {
+    if (id == null) return 'For Sale';
+    final match = _listingTypesList.firstWhere(
+      (t) => (t['id'] as num?)?.toInt() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    if (match.isNotEmpty && match['name'] != null) return match['name'].toString();
+    return id == 2 ? 'For Rent' : 'For Sale';
+  }
 
-  static const Map<int, String> _periodNames = {
-    1: 'Monthly',
-    2: 'Quarterly',
-    3: 'Half-Yearly',
-    4: 'Annually',
-  };
+  String _getApartmentTypeName(int? id) {
+    if (id == null) return 'Standard Apartment';
+    final match = _apartmentTypesList.firstWhere(
+      (t) => (t['id'] as num?)?.toInt() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    return match['name']?.toString() ?? 'Standard Apartment';
+  }
 
-  static const Map<int, String> _ownershipTypes = {
-    1: 'Freehold',
-    2: 'Leasehold',
-    3: 'Condominium Title',
-    4: 'Joint Ownership',
-    5: 'Power of Attorney',
-  };
+  String _getCondominiumName(String? id) {
+    if (id == null || id.isEmpty) return 'Stand-alone / Independent Building';
+    final match = _condominiumsList.firstWhere(
+      (c) => c['id']?.toString() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    return match['name']?.toString() ?? 'Condominium';
+  }
+
+  String _getViewTypeName(int? id) {
+    if (id == null) return 'Standard View';
+    final match = _viewTypesList.firstWhere(
+      (v) => (v['id'] as num?)?.toInt() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    return match['name']?.toString() ?? 'Standard View';
+  }
+
+  String _getFurnishingTypeName(int? id) {
+    if (id == null) return 'Unfurnished';
+    final match = _furnishingTypesList.firstWhere(
+      (f) => (f['id'] as num?)?.toInt() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    return match['name']?.toString() ?? 'Unfurnished';
+  }
+
+  String _getOwnershipTypeName(int? id) {
+    if (id == null) return 'Freehold';
+    final match = _ownershipTypesList.firstWhere(
+      (o) => (o['id'] as num?)?.toInt() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    return match['name']?.toString() ?? 'Freehold';
+  }
+
+  String _getDocumentTypeName(int id) {
+    final match = _documentTypesList.firstWhere(
+      (d) => (d['id'] as num?)?.toInt() == id,
+      orElse: () => <String, dynamic>{},
+    );
+    return match['name']?.toString() ?? 'Document #$id';
+  }
+
+  IconData _getDocumentTypeIcon(String? code, String? name) {
+    final c = '$code $name'.toUpperCase();
+    if (c.contains('DEED') || c.contains('TITLE')) return Icons.description_outlined;
+    if (c.contains('SURVEY') || c.contains('PLAN') || c.contains('MAP')) return Icons.map_outlined;
+    if (c.contains('BUILD') || c.contains('ARCHITECT')) return Icons.architecture_outlined;
+    if (c.contains('COC') || c.contains('CONFORM')) return Icons.verified_outlined;
+    if (c.contains('STREET') || c.contains('VESTING') || c.contains('CLEAR')) return Icons.alt_route_outlined;
+    if (c.contains('TAX') || c.contains('RECEIPT') || c.contains('RATES')) return Icons.receipt_long_outlined;
+    if (c.contains('POA') || c.contains('ATTORNEY')) return Icons.assignment_ind_outlined;
+    return Icons.folder_open_outlined;
+  }
 
   // Known feature icon lookups
   static const Map<int, IconData> _featureIcons = {
@@ -127,6 +195,13 @@ class _SellerPropertyDetailsScreenState
     20: Icons.wifi_outlined,
   };
 
+  static const Map<int, String> _periodNames = {
+    1: 'Monthly',
+    2: 'Quarterly',
+    3: 'Bi-Annually',
+    4: 'Annually',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -151,7 +226,7 @@ class _SellerPropertyDetailsScreenState
     try {
       _accessToken = await _secureStorage.getAccessToken();
 
-      // Load main details, statuses, media, features, amenities, financials, legal, documents in parallel
+      // Load main details, statuses, media, features, amenities, financials, legal, documents, apartment details, and masters in parallel
       final results = await Future.wait([
         _sellerService.getPropertyById(widget.propertyId).catchError((_) => _property),
         _sellerService.getPropertyMedia(widget.propertyId).catchError((_) => <Map<String, dynamic>>[]),
@@ -161,6 +236,15 @@ class _SellerPropertyDetailsScreenState
         _sellerService.getPropertyLegalDetails(widget.propertyId).catchError((_) => null),
         _sellerService.getPropertyDocuments(widget.propertyId).catchError((_) => <Map<String, dynamic>>[]),
         _sellerService.getPropertyStatuses().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getApartmentDetails(widget.propertyId).catchError((_) => null),
+        _sellerService.getPropertyTypes().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getListingTypes().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getApartmentTypes().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getCondominiums().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getViewTypes().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getFurnishingTypes().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getOwnershipTypes().catchError((_) => <Map<String, dynamic>>[]),
+        _sellerService.getDocumentTypes().catchError((_) => <Map<String, dynamic>>[]),
       ]);
 
       if (!mounted) return;
@@ -179,6 +263,16 @@ class _SellerPropertyDetailsScreenState
         if (fetchedStatuses.isNotEmpty) {
           _propertyStatuses = fetchedStatuses;
         }
+        _apartmentDetails = results[8] as Map<String, dynamic>?;
+        _propertyTypesList = results[9] as List<Map<String, dynamic>>;
+        _listingTypesList = results[10] as List<Map<String, dynamic>>;
+        _apartmentTypesList = results[11] as List<Map<String, dynamic>>;
+        _condominiumsList = results[12] as List<Map<String, dynamic>>;
+        _viewTypesList = results[13] as List<Map<String, dynamic>>;
+        _furnishingTypesList = results[14] as List<Map<String, dynamic>>;
+        _ownershipTypesList = results[15] as List<Map<String, dynamic>>;
+        _documentTypesList = results[16] as List<Map<String, dynamic>>;
+
         _isLoading = false;
       });
     } catch (e) {
@@ -191,12 +285,15 @@ class _SellerPropertyDetailsScreenState
   }
 
   bool get _isDraft {
-    final status = _property['status'] ?? _property['propertyStatus'];
-    if (status == null) return true;
-    if (status == 1 || status == '1' || status.toString().toLowerCase() == 'draft') {
-      return true;
-    }
-    return false;
+    final status = (_property['status'] as num?)?.toInt() ?? 1;
+    final statusName = (_property['statusName'] ?? '').toString().toLowerCase();
+    return status == 1 || statusName == 'draft';
+  }
+
+  bool get _isChangesRequested {
+    final status = (_property['status'] as num?)?.toInt() ?? 1;
+    final statusName = (_property['statusName'] ?? '').toString().toLowerCase();
+    return status == 9 || statusName.contains('changes');
   }
 
   String _getPropertyStatusName() {
@@ -297,19 +394,22 @@ class _SellerPropertyDetailsScreenState
   Future<void> _publishProperty() async {
     if (_isPublishing) return;
 
+    final isChanges = _isChangesRequested;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.send_rounded, color: primaryCyan),
-            SizedBox(width: 8),
-            Text('Submit for Approval'),
+            Icon(Icons.send_rounded, color: isChanges ? Colors.deepPurple : primaryCyan),
+            const SizedBox(width: 8),
+            Text(isChanges ? 'Resubmit for Approval' : 'Submit for Approval'),
           ],
         ),
-        content: const Text(
-          'Are you ready to submit this property listing for admin review and legal verification? Once approved, it will be published to all buyers.',
+        content: Text(
+          isChanges
+              ? 'Are you ready to resubmit this listing with the requested updates for admin review? Once approved, it will be published to buyers.'
+              : 'Are you ready to submit this property listing for admin review and legal verification? Once approved, it will be published to all buyers.',
         ),
         actions: [
           TextButton(
@@ -319,11 +419,11 @@ class _SellerPropertyDetailsScreenState
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: primaryCyan,
+              backgroundColor: isChanges ? Colors.deepPurple : primaryCyan,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Submit Now'),
+            child: Text(isChanges ? 'Resubmit Now' : 'Submit Now'),
           ),
         ],
       ),
@@ -348,12 +448,16 @@ class _SellerPropertyDetailsScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
               Expanded(
-                child: Text('Property submitted for admin review successfully!'),
+                child: Text(
+                  isChanges
+                      ? 'Property resubmitted for admin review successfully!'
+                      : 'Property submitted for admin review successfully!',
+                ),
               ),
             ],
           ),
@@ -378,7 +482,7 @@ class _SellerPropertyDetailsScreenState
   }
 
   void _showSectionPicker() {
-    final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+    final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
 
     showModalBottomSheet(
       context: context,
@@ -440,9 +544,9 @@ class _SellerPropertyDetailsScreenState
             ),
             _buildSectionTile(
               stepNumber: 2,
-              title: 'Property Features',
-              subtitle: 'Pool, garden, parking, elevator, etc.',
-              icon: Icons.star_outline_rounded,
+              title: 'Unit & Property Details',
+              subtitle: 'Condo, floor, area, rooms, layout & features',
+              icon: Icons.apartment_rounded,
               onTap: () async {
                 Navigator.pop(context);
                 final res = await Navigator.push(
@@ -683,12 +787,17 @@ class _SellerPropertyDetailsScreenState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              _buildAdminFeedbackBanner(),
                               _buildStatusAndPriceCard(),
                               const SizedBox(height: 16),
                               _buildLocationCard(),
                               const SizedBox(height: 16),
                               _buildOverviewCard(),
                               const SizedBox(height: 16),
+                              if (_apartmentDetails != null) ...[
+                                _buildApartmentDetailsCard(),
+                                const SizedBox(height: 16),
+                              ],
                               _buildFeaturesCard(),
                               const SizedBox(height: 16),
                               _buildAmenitiesCard(),
@@ -757,7 +866,7 @@ class _SellerPropertyDetailsScreenState
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () async {
-                final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+                final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
                 final res = await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1042,6 +1151,14 @@ class _SellerPropertyDetailsScreenState
     final addressLine2 = _property['addressLine2']?.toString() ?? '';
     final city = _property['city']?.toString() ?? '';
     final postalCode = _property['postalCode']?.toString() ?? '';
+    final province = _property['province']?.toString() ?? '';
+    final district = _property['district']?.toString() ?? '';
+    final dsDivision = _property['divisionalSecretariatName']?.toString() ??
+        _property['divisionalSecretariat']?['name']?.toString() ??
+        _property['dsDivision']?.toString() ?? '';
+    final gnDivision = _property['gramaNiladhariName']?.toString() ??
+        _property['gramaNiladhariDivision']?['name']?.toString() ??
+        _property['gnDivision']?.toString() ?? '';
     final latitude = _property['latitude'];
     final longitude = _property['longitude'];
 
@@ -1085,17 +1202,60 @@ class _SellerPropertyDetailsScreenState
                     fontSize: 14,
                     height: 1.4,
                     color: darkText,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Administrative Hierarchy
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                _buildInfoRow(
+                  label: 'Province / District',
+                  value: '${province.isNotEmpty ? province : '-'} / ${district.isNotEmpty ? district : '-'}',
+                ),
+                if (dsDivision.isNotEmpty || gnDivision.isNotEmpty) ...[
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'DS Division',
+                    value: dsDivision.isNotEmpty ? dsDivision : 'Not specified',
+                  ),
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'GN Division',
+                    value: gnDivision.isNotEmpty ? gnDivision : 'Not specified',
+                  ),
+                ],
+                if (city.isNotEmpty || postalCode.isNotEmpty) ...[
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'City / Postal Code',
+                    value: '${city.isNotEmpty ? city : '-'} ${postalCode.isNotEmpty ? '($postalCode)' : ''}',
+                  ),
+                ],
+              ],
+            ),
+          ),
           if (latitude != null && longitude != null) ...[
             const SizedBox(height: 10),
-            Text(
-              'Coordinates: $latitude, $longitude',
-              style: const TextStyle(fontSize: 12, color: secondaryGray),
+            Row(
+              children: [
+                const Icon(Icons.pin_drop_outlined, size: 15, color: secondaryGray),
+                const SizedBox(width: 6),
+                Text(
+                  'GPS: $latitude, $longitude',
+                  style: const TextStyle(fontSize: 12, color: secondaryGray),
+                ),
+              ],
             ),
           ],
         ],
@@ -1118,13 +1278,13 @@ class _SellerPropertyDetailsScreenState
             children: [
               _buildBadgeItem(
                 label: 'Type',
-                value: _propertyTypes[propertyTypeId] ?? 'Property',
+                value: _getPropertyTypeName(propertyTypeId),
                 icon: Icons.home_outlined,
               ),
               const SizedBox(width: 12),
               _buildBadgeItem(
                 label: 'Listing',
-                value: _listingTypes[listingTypeId] ?? 'For Sale',
+                value: _getListingTypeName(listingTypeId),
                 icon: Icons.sell_outlined,
               ),
             ],
@@ -1147,6 +1307,231 @@ class _SellerPropertyDetailsScreenState
                 height: 1.5,
                 color: Color(0xFF4B5563),
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApartmentDetailsCard() {
+    final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
+    final apt = _apartmentDetails ?? {};
+    if (apt.isEmpty) return const SizedBox.shrink();
+
+    final condoId = apt['condominiumId']?.toString();
+    final condoName = _getCondominiumName(condoId);
+    final aptTypeId = (apt['apartmentTypeId'] as num?)?.toInt();
+    final aptTypeName = _getApartmentTypeName(aptTypeId);
+    final floorNumber = apt['floorNumber']?.toString() ?? '-';
+    final unitNumber = apt['unitNumber']?.toString() ?? '-';
+    final isCornerUnit = apt['isCornerUnit'] == true;
+    final floorArea = apt['floorAreaSqFt'];
+    final areaText = floorArea != null ? '${_formatCurrency(floorArea)} Sq.Ft' : '-';
+
+    final bedroomCount = (apt['bedroomCount'] as num?)?.toInt() ?? 0;
+    final masterBedroomCount = (apt['masterBedroomCount'] as num?)?.toInt() ?? 0;
+    final bathroomCount = (apt['bathroomCount'] as num?)?.toInt() ?? 0;
+    final attachedBathroomCount = (apt['attachedBathroomCount'] as num?)?.toInt() ?? 0;
+    final balconyCount = (apt['balconyCount'] as num?)?.toInt() ?? 0;
+
+    final viewTypeId = (apt['viewTypeId'] as num?)?.toInt();
+    final viewTypeName = _getViewTypeName(viewTypeId);
+    final furnishingTypeId = (apt['furnishingTypeId'] as num?)?.toInt();
+    final furnishingTypeName = _getFurnishingTypeName(furnishingTypeId);
+
+    final List<String> utilitySpaces = [];
+    if (apt['hasMaidRoom'] == true) utilitySpaces.add("Maid's Room");
+    if (apt['hasMaidBathroom'] == true) utilitySpaces.add("Maid's Bathroom");
+    if (apt['hasLaundryArea'] == true) utilitySpaces.add('Laundry Area');
+    if (apt['hasStorageRoom'] == true) utilitySpaces.add('Storage Room');
+    if (apt['hasWalkInCloset'] == true) utilitySpaces.add('Walk-in Closet');
+    if (apt['hasDriversRoom'] == true) utilitySpaces.add("Driver's Quarters");
+
+    return _buildCard(
+      title: 'Apartment & Unit Details',
+      icon: Icons.apartment_rounded,
+      trailing: IconButton(
+        icon: const Icon(Icons.edit, size: 18, color: primaryCyan),
+        onPressed: () async {
+          final res = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PropertyFeaturesScreen(
+                propertyId: widget.propertyId,
+                propertyType: typeName,
+              ),
+            ),
+          );
+          if (res == true || mounted) _loadAllPropertyData();
+        },
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Condominium / Building info
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_city_rounded, color: primaryCyan, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Condominium / Complex',
+                        style: TextStyle(fontSize: 11, color: secondaryGray),
+                      ),
+                      Text(
+                        condoName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: darkText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    aptTypeName,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF6366F1),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Unit Specs Row
+          Row(
+            children: [
+              _buildBadgeItem(
+                label: 'Floor / Unit',
+                value: 'Fl. $floorNumber / #$unitNumber',
+                icon: Icons.layers_outlined,
+              ),
+              const SizedBox(width: 10),
+              _buildBadgeItem(
+                label: 'Total Floor Area',
+                value: areaText,
+                icon: Icons.square_foot_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // View and Furnishing Row
+          Row(
+            children: [
+              _buildBadgeItem(
+                label: 'View Type',
+                value: viewTypeName,
+                icon: Icons.landscape_outlined,
+              ),
+              const SizedBox(width: 10),
+              _buildBadgeItem(
+                label: 'Furnishing',
+                value: furnishingTypeName,
+                icon: Icons.chair_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Room Counts Grid
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                _buildInfoRow(
+                  label: 'Bedrooms',
+                  value: '$bedroomCount ($masterBedroomCount Master)',
+                ),
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'Bathrooms',
+                  value: '$bathroomCount ($attachedBathroomCount Attached)',
+                ),
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'Balconies',
+                  value: '$balconyCount',
+                ),
+                if (isCornerUnit) ...[
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'Unit Position',
+                    value: 'Corner Unit (Prime Exposure)',
+                    valueColor: const Color(0xFF6366F1),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Utility Spaces Tags
+          if (utilitySpaces.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'Additional & Utility Spaces',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: darkText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: utilitySpaces.map((space) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: primaryCyan.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: primaryCyan.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle_outline, size: 14, color: primaryCyan),
+                      const SizedBox(width: 6),
+                      Text(
+                        space,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: darkText,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
           ],
         ],
@@ -1195,7 +1580,7 @@ class _SellerPropertyDetailsScreenState
   }
 
   Widget _buildFeaturesCard() {
-    final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+    final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
 
     return _buildCard(
       title: 'Property Features (${_features.length})',
@@ -1261,7 +1646,7 @@ class _SellerPropertyDetailsScreenState
   }
 
   Widget _buildAmenitiesCard() {
-    final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+    final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
 
     return _buildCard(
       title: 'Property Amenities (${_amenities.length})',
@@ -1327,7 +1712,7 @@ class _SellerPropertyDetailsScreenState
   }
 
   Widget _buildFinancialsCard() {
-    final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+    final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
     final fin = _financials;
 
     return _buildCard(
@@ -1399,7 +1784,7 @@ class _SellerPropertyDetailsScreenState
   }
 
   Widget _buildLegalDetailsCard() {
-    final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+    final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
     final legal = _legalDetails;
 
     return _buildCard(
@@ -1429,8 +1814,7 @@ class _SellerPropertyDetailsScreenState
               children: [
                 _buildInfoRow(
                   label: 'Ownership Type',
-                  value: _ownershipTypes[(legal['ownershipType'] as num?)?.toInt()] ??
-                      'Freehold',
+                  value: _getOwnershipTypeName((legal['ownershipType'] as num?)?.toInt()),
                 ),
                 const Divider(height: 18),
                 _buildInfoRow(
@@ -1463,7 +1847,7 @@ class _SellerPropertyDetailsScreenState
   }
 
   Widget _buildDocumentsCard() {
-    final typeName = _propertyTypes[_property['propertyTypeId']] ?? 'Property';
+    final typeName = _getPropertyTypeName((_property['propertyTypeId'] as num?)?.toInt());
 
     return _buildCard(
       title: 'Legal & Official Documents (${_documents.length})',
@@ -1521,15 +1905,8 @@ class _SellerPropertyDetailsScreenState
           : Column(
               children: _documents.map((doc) {
                 final typeId = (doc['documentTypeId'] as num?)?.toInt() ?? 1;
-                final docType = kPropertyDocumentTypes.firstWhere(
-                  (t) => t.id == typeId,
-                  orElse: () => PropertyDocumentType(
-                    id: typeId,
-                    name: 'Document #$typeId',
-                    description: '',
-                    icon: Icons.description_outlined,
-                  ),
-                );
+                final docTypeName = _getDocumentTypeName(typeId);
+                final docIcon = _getDocumentTypeIcon(doc['documentTypeCode']?.toString(), docTypeName);
                 final fileName = doc['originalFileName']?.toString() ?? 'Document';
                 final bytes = doc['fileSizeBytes'];
                 final num b = bytes is num ? bytes : num.tryParse(bytes?.toString() ?? '0') ?? 0;
@@ -1564,69 +1941,99 @@ class _SellerPropertyDetailsScreenState
                     break;
                 }
 
+                final rejectionReason = doc['rejectionReason']?.toString();
+                final isDocRejected = status.toInt() == 4;
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFB),
+                    color: isDocRejected ? Colors.red.shade50.withValues(alpha: 0.5) : const Color(0xFFF9FAFB),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    border: Border.all(color: isDocRejected ? Colors.red.shade200 : const Color(0xFFE5E7EB)),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: primaryCyan.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(docType.icon, color: primaryCyan, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              docType.name,
-                              style: const TextStyle(
-                                fontSize: 13,
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: isDocRejected ? Colors.red.shade100 : primaryCyan.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(docIcon, color: isDocRejected ? Colors.red.shade700 : primaryCyan, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  docTypeName,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: darkText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$fileName ($sizeText)',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: secondaryGray,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badgeText,
+                              style: TextStyle(
+                                fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: darkText,
+                                color: badgeFg,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$fileName ($sizeText)',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: secondaryGray,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: badgeBg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          badgeText,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: badgeFg,
+                      if (isDocRejected && rejectionReason != null && rejectionReason.trim().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline, size: 14, color: Colors.red.shade700),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Reason: $rejectionReason',
+                                  style: TextStyle(fontSize: 11, color: Colors.red.shade900),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 );
@@ -1745,7 +2152,7 @@ class _SellerPropertyDetailsScreenState
                 ),
               ),
             ),
-            if (isDraft) ...[
+            if (isDraft || _isChangesRequested) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
@@ -1761,7 +2168,9 @@ class _SellerPropertyDetailsScreenState
                         )
                       : const Icon(Icons.send_rounded, color: Colors.white),
                   label: Text(
-                    _isPublishing ? 'Submitting...' : 'Submit for Review',
+                    _isPublishing
+                        ? 'Submitting...'
+                        : (_isChangesRequested ? 'Resubmit for Approval' : 'Submit for Review'),
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
@@ -1769,7 +2178,7 @@ class _SellerPropertyDetailsScreenState
                   ),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: primaryCyan,
+                    backgroundColor: _isChangesRequested ? Colors.deepPurple : primaryCyan,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1781,6 +2190,123 @@ class _SellerPropertyDetailsScreenState
         ),
       ),
     );
+  }
+
+  Widget _buildAdminFeedbackBanner() {
+    final adminNotes = _property['adminNotes']?.toString() ?? _property['adminFeedback']?.toString();
+    final rejectionReason = _property['rejectionReason']?.toString();
+    final isChanges = _isChangesRequested;
+    final status = (_property['status'] as num?)?.toInt() ?? 1;
+    final isRejected = status == 10;
+
+    if (isChanges && adminNotes != null && adminNotes.trim().isNotEmpty) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.amber.shade400, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.shade100.withValues(alpha: 0.5),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.assignment_late_rounded, color: Colors.amber.shade900, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Changes Requested by Admin',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.amber.shade900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              adminNotes.trim(),
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Color(0xFF451A03),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Use "Edit Sections" below to update, then tap "Resubmit for Approval".',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.amber.shade800,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (isRejected && rejectionReason != null && rejectionReason.trim().isNotEmpty) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.red.shade300, width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cancel_rounded, color: Colors.red.shade800, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Listing Declined by Admin',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.red.shade800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              rejectionReason.trim(),
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Colors.red.shade900,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 }
 

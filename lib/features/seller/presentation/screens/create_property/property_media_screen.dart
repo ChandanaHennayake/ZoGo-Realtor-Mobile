@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_documents_screen.dart';
 
 class PropertyMediaScreen extends StatefulWidget {
   final String propertyId;
@@ -324,33 +325,118 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
     );
   }
 
-  void _finishListing() {
+  Future<void> _finishListing() async {
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: primaryColor, size: 28),
+            SizedBox(width: 10),
+            Text('Listing Ready', style: TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text(
+          'You have completed all sections and media for this property. How would you like to proceed?',
+          style: TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx, 'draft'),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.grey),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Save as Draft', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, 'submit'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Submit Now', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || !mounted) return;
+
     setState(() {
       _isFinalizing = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Property listing completed successfully with all details and media!',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+    try {
+      if (choice == 'submit') {
+        await _sellerService.submitProperty(widget.propertyId);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.send_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Property submitted for admin review successfully!',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        backgroundColor: Colors.green.shade600,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context, true);
+            backgroundColor: Colors.deepPurple,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Property listing saved as draft.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorSnackBar('Failed to submit property: $e');
+      setState(() {
+        _isFinalizing = false;
+      });
+      return;
     }
+
+    if (!mounted) return;
+
+    // Auto-redirect to home / root screen
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -555,11 +641,12 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Property ID: ${widget.propertyId.length > 12 ? '${widget.propertyId.substring(0, 12)}...' : widget.propertyId}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
+                const Text(
+                  'Step 7 of 7 • Photos & Media Gallery',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -910,7 +997,7 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
 
   Widget _buildBottomButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -924,20 +1011,72 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
       child: Row(
         children: [
           Expanded(
-            flex: 1,
+            flex: 2,
             child: SizedBox(
-              height: 52,
-              child: OutlinedButton(
+              height: 50,
+              child: OutlinedButton.icon(
                 onPressed: _isFinalizing
                     ? null
                     : () {
                         if (Navigator.canPop(context)) {
-                          Navigator.pop(context, true);
+                          Navigator.pop(context);
+                        } else {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PropertyDocumentsScreen(
+                                propertyId: widget.propertyId,
+                                propertyType: widget.propertyType,
+                              ),
+                            ),
+                          );
                         }
                       },
+                icon: const Icon(Icons.arrow_back, size: 15),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Previous',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   foregroundColor: Colors.black87,
-                  side: BorderSide(color: Colors.grey.shade400),
+                  side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 50,
+              child: OutlinedButton(
+                onPressed: _isFinalizing
+                    ? null
+                    : () async {
+                        await _sellerService.setDraftStep(widget.propertyId, 7);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Media & listing saved as draft.'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  side: const BorderSide(color: primaryColor, width: 1.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -947,22 +1086,24 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
                   child: Text(
                     'Save & Exit',
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: primaryColor,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: SizedBox(
-              height: 52,
+              height: 50,
               child: ElevatedButton(
                 onPressed: _isFinalizing ? null : _finishListing,
                 style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   backgroundColor: primaryColor,
                   disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
                   foregroundColor: Colors.white,
@@ -985,18 +1126,21 @@ class _PropertyMediaScreenState extends State<PropertyMediaScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
-                            child: Text(
-                              'Complete Listing',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Complete Listing',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
                           SizedBox(width: 4),
-                          Icon(Icons.done_all, size: 18),
+                          Icon(Icons.done_all, size: 16),
                         ],
                       ),
               ),

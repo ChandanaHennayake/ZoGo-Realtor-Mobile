@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_financials_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_features_screen.dart';
 
 class PropertyAmenitiesScreen extends StatefulWidget {
   final String propertyId;
@@ -17,122 +18,64 @@ class PropertyAmenitiesScreen extends StatefulWidget {
 }
 
 class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
-  static const Color primaryColor = Color(0xFF00C6D4);
+  static const Color primaryCyan = Color(0xFF00C6D4);
 
   final SellerService _sellerService = SellerService();
   final Set<int> _selectedAmenityIds = {};
+
+  List<Map<String, dynamic>> _masterAmenities = [];
   String _selectedCategory = 'All';
+  bool _isLoading = true;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _loadExistingAmenities();
+    _loadAmenities();
   }
 
-  Future<void> _loadExistingAmenities() async {
+  Future<void> _loadAmenities() async {
+    setState(() => _isLoading = true);
+
     try {
-      final list = await _sellerService.getPropertyAmenities(widget.propertyId);
-      if (!mounted) return;
-      setState(() {
-        for (final item in list) {
-          final id = (item['amenityId'] ?? item['AmenityId'] ?? item['id']) as num?;
-          if (id != null) {
-            _selectedAmenityIds.add(id.toInt());
-          }
-        }
-      });
-    } catch (_) {}
-  }
+      final futures = await Future.wait([
+        _sellerService.getAmenities(),
+        _sellerService.getPropertyAmenities(widget.propertyId),
+      ]);
 
-  final List<Map<String, dynamic>> _amenities = const [
-    {
-      'id': 1,
-      'name': 'Swimming Pool',
-      'icon': Icons.pool_outlined,
-      'category': 'Leisure',
-    },
-    {
-      'id': 2,
-      'name': 'Gym',
-      'icon': Icons.fitness_center_outlined,
-      'category': 'Fitness',
-    },
-    {
-      'id': 3,
-      'name': '24/7 Security',
-      'icon': Icons.shield_outlined,
-      'category': 'Safety',
-    },
-    {
-      'id': 4,
-      'name': 'Clubhouse',
-      'icon': Icons.diversity_3_outlined,
-      'category': 'Community',
-    },
-    {
-      'id': 5,
-      'name': 'Covered Parking',
-      'icon': Icons.garage_outlined,
-      'category': 'Parking',
-    },
-    {
-      'id': 6,
-      'name': 'Visitor Parking',
-      'icon': Icons.local_parking_outlined,
-      'category': 'Parking',
-    },
-    {
-      'id': 7,
-      'name': 'Play Area',
-      'icon': Icons.park_outlined,
-      'category': 'Community',
-    },
-    {
-      'id': 8,
-      'name': 'Power Backup',
-      'icon': Icons.bolt_outlined,
-      'category': 'Utilities',
-    },
-    {
-      'id': 9,
-      'name': 'Elevator',
-      'icon': Icons.elevator_outlined,
-      'category': 'Building',
-    },
-    {
-      'id': 10,
-      'name': 'CCTV Surveillance',
-      'icon': Icons.videocam_outlined,
-      'category': 'Safety',
-    },
-    {
-      'id': 11,
-      'name': 'Rooftop Terrace',
-      'icon': Icons.deck_outlined,
-      'category': 'Leisure',
-    },
-    {
-      'id': 12,
-      'name': 'Garden',
-      'icon': Icons.yard_outlined,
-      'category': 'Leisure',
-    },
-  ];
+      _masterAmenities = futures[0];
+      final existing = futures[1];
+
+      for (final item in existing) {
+        final id = (item['amenityId'] ?? item['AmenityId'] ?? item['id']) as num?;
+        if (id != null) {
+          _selectedAmenityIds.add(id.toInt());
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading amenities: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   List<String> get _categories {
     final set = <String>{'All'};
-    for (final a in _amenities) {
-      final cat = a['category'] as String?;
-      if (cat != null) set.add(cat);
+    for (final a in _masterAmenities) {
+      final cat = a['category']?.toString();
+      if (cat != null && cat.isNotEmpty) {
+        set.add(cat);
+      }
     }
     return set.toList();
   }
 
   List<Map<String, dynamic>> get _filteredAmenities {
-    if (_selectedCategory == 'All') return _amenities;
-    return _amenities
-        .where((a) => a['category'] == _selectedCategory)
+    if (_selectedCategory == 'All') return _masterAmenities;
+    return _masterAmenities
+        .where((a) => a['category']?.toString().toLowerCase() == _selectedCategory.toLowerCase())
         .toList();
   }
 
@@ -147,6 +90,31 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
     });
   }
 
+  IconData _getAmenityIcon(String? iconName, String? name) {
+    final n = (name ?? '').toLowerCase();
+    if (n.contains('pool')) return Icons.pool_outlined;
+    if (n.contains('gym') || n.contains('fitness')) return Icons.fitness_center_outlined;
+    if (n.contains('secur') || n.contains('guard')) return Icons.shield_outlined;
+    if (n.contains('cctv') || n.contains('surveil')) return Icons.videocam_outlined;
+    if (n.contains('park') || n.contains('garage')) return Icons.local_parking_outlined;
+    if (n.contains('elevat') || n.contains('lift')) return Icons.elevator_outlined;
+    if (n.contains('power') || n.contains('generat') || n.contains('backup')) return Icons.bolt_outlined;
+    if (n.contains('club') || n.contains('lounge')) return Icons.meeting_room_outlined;
+    if (n.contains('play') || n.contains('kid')) return Icons.park_outlined;
+    if (n.contains('garden') || n.contains('landscap')) return Icons.yard_outlined;
+    if (n.contains('rooftop') || n.contains('deck') || n.contains('terrace')) return Icons.deck_outlined;
+    if (n.contains('fire') || n.contains('alarm')) return Icons.fire_extinguisher_outlined;
+    if (n.contains('ev') || n.contains('charg')) return Icons.ev_station_outlined;
+    if (n.contains('sauna') || n.contains('spa') || n.contains('jacuzzi')) return Icons.hot_tub_outlined;
+    if (n.contains('tennis') || n.contains('squash') || n.contains('badminton')) return Icons.sports_tennis_outlined;
+    if (n.contains('cinema') || n.contains('theatre')) return Icons.theaters_outlined;
+    if (n.contains('bbq')) return Icons.outdoor_grill_outlined;
+    if (n.contains('concierge') || n.contains('recept')) return Icons.room_service_outlined;
+    if (n.contains('water') || n.contains('tank')) return Icons.water_drop_outlined;
+    if (n.contains('intercom')) return Icons.phone_in_talk_outlined;
+    return Icons.domain_outlined;
+  }
+
   Future<void> _saveAmenities({bool exitAfterSave = false}) async {
     if (_isSaving) return;
 
@@ -155,12 +123,10 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
     });
 
     try {
-      if (_selectedAmenityIds.isNotEmpty) {
-        await _sellerService.addPropertyAmenities(
-          widget.propertyId,
-          _selectedAmenityIds.toList(),
-        );
-      }
+      await _sellerService.syncPropertyAmenities(
+        widget.propertyId,
+        _selectedAmenityIds,
+      );
 
       if (!mounted) return;
 
@@ -168,22 +134,21 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
         _isSaving = false;
       });
 
-      if (_selectedAmenityIds.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Amenities (${_selectedAmenityIds.length}) saved successfully!',
-            ),
-            backgroundColor: Colors.green.shade600,
-            duration: const Duration(seconds: 2),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Building facilities (${_selectedAmenityIds.length}) updated successfully!',
           ),
-        );
-      }
+          backgroundColor: Colors.green.shade600,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      await _sellerService.setDraftStep(widget.propertyId, exitAfterSave ? 3 : 4);
+      if (!mounted) return;
 
       if (exitAfterSave) {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context, true);
-        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
         return;
       }
 
@@ -215,110 +180,141 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final typeName = widget.propertyType ?? 'Property';
+    final typeName = widget.propertyType ?? 'Apartment / Property';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF7F9FA),
       appBar: AppBar(
-        title: const Text(
-          'Property Amenities',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        centerTitle: false,
         backgroundColor: Colors.white,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        centerTitle: true,
+        title: const Text(
+          'Building Facilities & Amenities',
+          style: TextStyle(
+            color: Color(0xFF1A1A1A),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        iconTheme: const IconThemeData(
+          color: Color(0xFF1A1A1A),
+        ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildProgress(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: _isLoading
+            ? const Center(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: 8),
-                    const Text(
-                      'What amenities are available?',
+                    CircularProgressIndicator(color: primaryCyan),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading facilities from master table...',
                       style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
+                        color: Color(0xFF6B7280),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Select the shared and community amenities available for this property.',
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.5,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    _buildPropertyTypeCard(typeName),
-                    const SizedBox(height: 20),
-                    _buildCategoryFilter(),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Available Amenities',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        if (_selectedAmenityIds.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '${_selectedAmenityIds.length} selected',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: primaryColor,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildAmenityGrid(),
-                    const SizedBox(height: 24),
-                    _buildInfoCard(),
                   ],
                 ),
+              )
+            : Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildProgress(),
+                          const SizedBox(height: 24),
+
+                          const Text(
+                            'Section 03 — Building Facilities',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Select the communal and building facilities available to residents (Basic, Lifestyle, Premium).',
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.5,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          _buildPropertyTypeCard(typeName),
+                          const SizedBox(height: 18),
+
+                          _buildCategoryFilter(),
+                          const SizedBox(height: 18),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _selectedCategory == 'All'
+                                    ? 'All Facilities (${_filteredAmenities.length})'
+                                    : '$_selectedCategory Facilities (${_filteredAmenities.length})',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              if (_selectedAmenityIds.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: primaryCyan.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '${_selectedAmenityIds.length} Selected',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: primaryCyan,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          _buildAmenityGrid(),
+                          const SizedBox(height: 20),
+
+                          _buildInfoCard(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _buildBottomButton(),
+                ],
               ),
-            ),
-            _buildBottomButton(),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildProgress() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Row(
         children: [
           _buildStepItem(number: '1', title: 'Basic', isCompleted: true, isActive: false),
           _buildStepLine(true),
-          _buildStepItem(number: '2', title: 'Features', isCompleted: true, isActive: false),
+          _buildStepItem(number: '2', title: 'Details', isCompleted: true, isActive: false),
           _buildStepLine(true),
-          _buildStepItem(number: '3', title: 'Amenities', isCompleted: false, isActive: true),
+          _buildStepItem(number: '3', title: 'Facilities', isCompleted: false, isActive: true),
           _buildStepLine(false),
           _buildStepItem(number: '4', title: 'Financials', isCompleted: false, isActive: false),
           _buildStepLine(false),
@@ -335,7 +331,7 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.symmetric(horizontal: 3),
-        color: isCompleted ? primaryColor : const Color(0xFFE5E7EB),
+        color: isCompleted ? primaryCyan : const Color(0xFFE5E7EB),
       ),
     );
   }
@@ -353,7 +349,9 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
           height: 24,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isActive || isCompleted ? primaryColor : Colors.grey.shade300,
+            color: isActive
+                ? primaryCyan
+                : (isCompleted ? primaryCyan : const Color(0xFFE5E7EB)),
           ),
           child: Center(
             child: isCompleted
@@ -363,7 +361,7 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: isActive ? Colors.white : Colors.black45,
+                      color: isActive ? Colors.white : const Color(0xFF9CA3AF),
                     ),
                   ),
           ),
@@ -373,39 +371,45 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
           title,
           style: TextStyle(
             fontSize: 10,
-            fontWeight:
-                isActive || isCompleted ? FontWeight.w700 : FontWeight.w500,
-            color: isActive ? primaryColor : Colors.black87,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            color: isActive ? const Color(0xFF1A1A1A) : const Color(0xFF9CA3AF),
           ),
         ),
       ],
     );
   }
 
-
   Widget _buildPropertyTypeCard(String propertyType) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: primaryColor.withValues(alpha: 0.07),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: primaryColor.withValues(alpha: 0.20),
+          color: const Color(0xFFE5E7EB),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: primaryCyan.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
               Icons.domain_outlined,
-              color: primaryColor,
+              color: primaryCyan,
+              size: 20,
             ),
           ),
           const SizedBox(width: 12),
@@ -414,19 +418,19 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Property ID: ${widget.propertyId.length > 12 ? '${widget.propertyId.substring(0, 12)}...' : widget.propertyId}',
+                  'Listing: ${widget.propertyId.length > 16 ? '${widget.propertyId.substring(0, 16)}...' : widget.propertyId}',
                   style: const TextStyle(
                     fontSize: 11,
-                    color: Colors.black54,
+                    color: Color(0xFF6B7280),
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   propertyType,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black87,
+                    color: Color(0xFF1A1A1A),
                   ),
                 ),
               ],
@@ -439,7 +443,7 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
 
   Widget _buildCategoryFilter() {
     return SizedBox(
-      height: 36,
+      height: 38,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _categories.length,
@@ -457,21 +461,30 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
             borderRadius: BorderRadius.circular(20),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? primaryColor : Colors.grey.shade100,
+                color: isSelected ? primaryCyan : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? primaryColor : Colors.grey.shade300,
+                  color: isSelected ? primaryCyan : const Color(0xFFE5E7EB),
                 ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: primaryCyan.withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
               child: Center(
                 child: Text(
                   cat,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : Colors.black87,
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF4B5563),
                   ),
                 ),
               ),
@@ -485,59 +498,77 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
   Widget _buildAmenityGrid() {
     final list = _filteredAmenities;
 
+    if (list.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        alignment: Alignment.center,
+        child: const Text(
+          'No amenities found for this category in the database.',
+          style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+        ),
+      );
+    }
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: list.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.55,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 2.1,
       ),
       itemBuilder: (context, index) {
         final amenity = list[index];
-        final id = amenity['id'] as int;
-        final name = amenity['name'] as String;
-        final icon = amenity['icon'] as IconData;
+        final id = (amenity['id'] as num).toInt();
+        final name = amenity['name']?.toString() ?? 'Amenity';
+        final cat = amenity['category']?.toString();
+        final icon = _getAmenityIcon(amenity['icon']?.toString(), name);
         final isSelected = _selectedAmenityIds.contains(id);
 
         return InkWell(
           onTap: () => _toggleAmenity(id),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.all(12),
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: isSelected
-                  ? primaryColor.withValues(alpha: 0.08)
+                  ? primaryCyan.withValues(alpha: 0.08)
                   : Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isSelected ? primaryColor : Colors.grey.shade200,
-                width: isSelected ? 1.5 : 1,
+                color: isSelected ? primaryCyan : const Color(0xFFE5E7EB),
+                width: isSelected ? 1.6 : 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
-                    color: isSelected ? primaryColor : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(11),
+                    color: isSelected ? primaryCyan : const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     icon,
-                    size: 20,
-                    color: isSelected ? Colors.white : Colors.black54,
+                    size: 18,
+                    color: isSelected ? Colors.white : const Color(0xFF6B7280),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -548,22 +579,21 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
                     children: [
                       Text(
                         name,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight:
-                              isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: Colors.black87,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                          color: isSelected ? primaryCyan : const Color(0xFF1A1A1A),
                         ),
                       ),
-                      if (amenity['category'] != null) ...[
+                      if (cat != null && cat.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
-                          amenity['category'] as String,
+                          cat,
                           style: TextStyle(
                             fontSize: 10,
-                            color: Colors.grey.shade500,
+                            color: isSelected ? primaryCyan.withValues(alpha: 0.8) : const Color(0xFF9CA3AF),
                           ),
                         ),
                       ],
@@ -573,7 +603,7 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
                 if (isSelected)
                   const Icon(
                     Icons.check_circle,
-                    color: primaryColor,
+                    color: primaryCyan,
                     size: 18,
                   ),
               ],
@@ -587,21 +617,25 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
   Widget _buildInfoCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, color: primaryColor, size: 21),
+          Icon(Icons.info_outline, color: primaryCyan, size: 20),
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Select all amenities that apply. These will be highlighted on your listing to attract potential buyers and tenants.',
-              style: TextStyle(fontSize: 13, height: 1.5, color: Colors.black54),
+              'Select all amenities verified and operational in your condominium or housing complex.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: Color(0xFF6B7280),
+              ),
             ),
           ),
         ],
@@ -610,33 +644,70 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
   }
 
   Widget _buildBottomButton() {
-    final count = _selectedAmenityIds.length;
-    final buttonText = count > 0
-        ? 'Next: Financials ($count)'
-        : 'Next: Financials';
-
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: const BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -3),
+        border: Border(
+          top: BorderSide(
+            color: Color(0xFFE5E7EB),
           ),
-        ],
+        ),
       ),
       child: Row(
         children: [
           Expanded(
-            flex: 1,
+            flex: 2,
             child: SizedBox(
-              height: 52,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PropertyFeaturesScreen(
+                          propertyId: widget.propertyId,
+                          propertyType: widget.propertyType,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.arrow_back, size: 15),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Previous',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 50,
               child: OutlinedButton(
                 onPressed: _isSaving ? null : () => _saveAmenities(exitAfterSave: true),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: primaryColor, width: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  side: const BorderSide(color: primaryCyan, width: 1.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -646,26 +717,27 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
                   child: Text(
                     'Save & Exit',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: primaryColor,
+                      color: primaryCyan,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            flex: 1,
+            flex: 3,
             child: SizedBox(
-              height: 52,
+              height: 50,
               child: ElevatedButton(
                 onPressed: _isSaving ? null : () => _saveAmenities(exitAfterSave: false),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  backgroundColor: primaryCyan,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: primaryCyan.withValues(alpha: 0.6),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -677,26 +749,29 @@ class _PropertyAmenitiesScreenState extends State<PropertyAmenitiesScreen> {
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          color: Colors.white,
                         ),
                       )
-                    : Row(
+                    : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
-                            child: Text(
-                              buttonText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Save & Next',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward, size: 16),
+                          SizedBox(width: 4),
+                          Icon(Icons.arrow_forward, size: 15),
                         ],
                       ),
               ),

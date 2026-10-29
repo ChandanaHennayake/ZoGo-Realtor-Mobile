@@ -177,6 +177,30 @@ class SellerService {
   }
 
   // ============================================================
+  // GET NEXT AUTO REFERENCE NUMBER (GET /api/v1/properties/next-reference-no)
+  // ============================================================
+
+  Future<String> getNextReferenceNumber() async {
+    try {
+      final response = await _dio.get(
+        '/api/v1/properties/next-reference-no',
+        options: Options(
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        if (response.data is Map && response.data['referenceNo'] != null) {
+          return response.data['referenceNo'].toString();
+        }
+      }
+    } catch (e) {
+      debugPrint('GET NEXT REFERENCE NO ERROR: $e');
+    }
+    return '';
+  }
+
+  // ============================================================
   // PROPERTY FEATURES (POST /api/v1/properties/{propertyId}/features)
   // ============================================================
 
@@ -255,6 +279,44 @@ class SellerService {
   ) async {
     for (final featureId in featureIds) {
       await addPropertyFeature(propertyId, featureId);
+    }
+  }
+
+  Future<void> deletePropertyFeature(String propertyId, int featureId) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null) return;
+      await _dio.delete(
+        '/api/v1/properties/$propertyId/features/$featureId',
+        options: Options(
+          headers: {'Authorization': 'Bearer $accessToken'},
+        ),
+      );
+    } catch (e) {
+      debugPrint('DELETE FEATURE ERROR: $e');
+    }
+  }
+
+  Future<void> syncPropertyFeatures(String propertyId, Set<int> targetFeatureIds) async {
+    try {
+      final currentList = await getPropertyFeatures(propertyId);
+      final currentIds = <int>{};
+      for (final item in currentList) {
+        final id = (item['featureId'] ?? item['FeatureId'] ?? item['id']) as num?;
+        if (id != null) currentIds.add(id.toInt());
+      }
+
+      final toAdd = targetFeatureIds.difference(currentIds);
+      final toRemove = currentIds.difference(targetFeatureIds);
+
+      for (final id in toRemove) {
+        await deletePropertyFeature(propertyId, id);
+      }
+      for (final id in toAdd) {
+        await addPropertyFeature(propertyId, id);
+      }
+    } catch (e) {
+      debugPrint('SYNC PROPERTY FEATURES ERROR: $e');
     }
   }
 
@@ -389,6 +451,44 @@ class SellerService {
     }
   }
 
+  Future<void> deletePropertyAmenity(String propertyId, int amenityId) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      if (accessToken == null) return;
+      await _dio.delete(
+        '/api/v1/properties/$propertyId/amenities/$amenityId',
+        options: Options(
+          headers: {'Authorization': 'Bearer $accessToken'},
+        ),
+      );
+    } catch (e) {
+      debugPrint('DELETE AMENITY ERROR: $e');
+    }
+  }
+
+  Future<void> syncPropertyAmenities(String propertyId, Set<int> targetAmenityIds) async {
+    try {
+      final currentList = await getPropertyAmenities(propertyId);
+      final currentIds = <int>{};
+      for (final item in currentList) {
+        final id = (item['amenityId'] ?? item['AmenityId'] ?? item['id']) as num?;
+        if (id != null) currentIds.add(id.toInt());
+      }
+
+      final toAdd = targetAmenityIds.difference(currentIds);
+      final toRemove = currentIds.difference(targetAmenityIds);
+
+      for (final id in toRemove) {
+        await deletePropertyAmenity(propertyId, id);
+      }
+      for (final id in toAdd) {
+        await addPropertyAmenity(propertyId, id);
+      }
+    } catch (e) {
+      debugPrint('SYNC PROPERTY AMENITIES ERROR: $e');
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getPropertyAmenities(
     String propertyId,
   ) async {
@@ -474,7 +574,7 @@ class SellerService {
       debugPrint('SAVE FINANCIALS STATUS: ${response.statusCode}');
       debugPrint('SAVE FINANCIALS RESPONSE: ${response.data}');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 204) {
         if (response.data is Map<String, dynamic>) {
           return response.data as Map<String, dynamic>;
         } else if (response.data is Map) {
@@ -612,7 +712,7 @@ class SellerService {
       debugPrint('SAVE LEGAL STATUS: ${response.statusCode}');
       debugPrint('SAVE LEGAL RESPONSE: ${response.data}');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 204) {
         if (response.data is Map<String, dynamic>) {
           return response.data as Map<String, dynamic>;
         } else if (response.data is Map) {
@@ -707,11 +807,26 @@ class SellerService {
       }
 
       final fileName = filePath.split(RegExp(r'[\\/]')).last;
+      final ext = fileName.split('.').last.toLowerCase();
+      String subType = 'jpeg';
+      if (ext == 'png') {
+        subType = 'png';
+      } else if (ext == 'webp') {
+        subType = 'webp';
+      } else if (ext == 'gif') {
+        subType = 'gif';
+      } else if (ext == 'mp4') {
+        subType = 'mp4';
+      } else if (ext == 'mov') {
+        subType = 'quicktime';
+      }
+      final mediaTypeHeader = (mediaType == 2) ? 'video' : 'image';
 
       final formData = FormData.fromMap({
         'File': await MultipartFile.fromFile(
           filePath,
           filename: fileName,
+          contentType: DioMediaType(mediaTypeHeader, subType),
         ),
         'MediaType': mediaType,
         'DisplayOrder': displayOrder,
@@ -725,6 +840,8 @@ class SellerService {
         data: formData,
         onSendProgress: onSendProgress,
         options: Options(
+          sendTimeout: const Duration(minutes: 3),
+          receiveTimeout: const Duration(minutes: 3),
           headers: {
             'Authorization': 'Bearer $accessToken',
             'Accept': 'application/json',
@@ -868,10 +985,22 @@ class SellerService {
       }
 
       final fileName = file.path.split(Platform.pathSeparator).last;
+      final ext = fileName.split('.').last.toLowerCase();
+      String type = 'application';
+      String subType = 'pdf';
+      if (ext == 'jpg' || ext == 'jpeg') {
+        type = 'image';
+        subType = 'jpeg';
+      } else if (ext == 'png') {
+        type = 'image';
+        subType = 'png';
+      }
+
       final formData = FormData.fromMap({
         'File': await MultipartFile.fromFile(
           file.path,
           filename: fileName,
+          contentType: DioMediaType(type, subType),
         ),
         'DocumentTypeId': documentTypeId,
       });
@@ -883,6 +1012,8 @@ class SellerService {
         data: formData,
         onSendProgress: onSendProgress,
         options: Options(
+          sendTimeout: const Duration(minutes: 3),
+          receiveTimeout: const Duration(minutes: 3),
           headers: {
             'Authorization': 'Bearer $accessToken',
             'Accept': 'application/json',
@@ -1290,6 +1421,290 @@ class SellerService {
       debugPrint('GET PROPERTY STATUSES ERROR: $e');
       return defaultPropertyStatuses;
     }
+  }
+
+  // ============================================================
+  // MASTER DATA ENDPOINTS
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> getDivisionalSecretariats(int districtId) async {
+    try {
+      final response = await _dio.get('/api/v1/common/districts/$districtId/divisional-secretariats');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET DS DIVISIONS ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getGramaNiladhariDivisions(int dsId) async {
+    try {
+      final response = await _dio.get('/api/v1/common/divisional-secretariats/$dsId/gn-divisions');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET GN DIVISIONS ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPropertyTypes() async {
+    try {
+      final response = await _dio.get('/api/v1/common/property-types');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET PROPERTY TYPES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getListingTypes() async {
+    try {
+      final response = await _dio.get('/api/v1/common/listing-types');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET LISTING TYPES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getApartmentTypes() async {
+    try {
+      final response = await _dio.get('/api/v1/common/apartment-types');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET APARTMENT TYPES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getFurnishingTypes() async {
+    try {
+      final response = await _dio.get('/api/v1/common/furnishing-types');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET FURNISHING TYPES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getViewTypes() async {
+    try {
+      final response = await _dio.get('/api/v1/common/view-types');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET VIEW TYPES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCondominiums({int? districtId}) async {
+    try {
+      final response = await _dio.get(
+        '/api/v1/common/condominiums',
+        queryParameters: districtId != null ? {'districtId': districtId} : null,
+      );
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET CONDOMINIUMS ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAmenities({String? category}) async {
+    try {
+      final response = await _dio.get(
+        '/api/v1/common/amenities',
+        queryParameters: category != null && category != 'All' ? {'category': category} : null,
+      );
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET AMENITIES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getFeatures({String? category}) async {
+    try {
+      final response = await _dio.get(
+        '/api/v1/common/features',
+        queryParameters: category != null && category != 'All' ? {'category': category} : null,
+      );
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET FEATURES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getDocumentTypes() async {
+    try {
+      final response = await _dio.get('/api/v1/common/document-types');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET DOCUMENT TYPES ERROR: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getOwnershipTypes() async {
+    try {
+      final response = await _dio.get('/api/v1/common/ownership-types');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('GET OWNERSHIP TYPES ERROR: $e');
+      return [];
+    }
+  }
+
+  // ============================================================
+  // APARTMENT DETAILS (POST / PUT / GET)
+  // ============================================================
+
+  Future<Map<String, dynamic>?> getApartmentDetails(String propertyId) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      final response = await _dio.get(
+        '/api/v1/properties/$propertyId/apartment-details',
+        options: Options(
+          headers: {
+            if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+          },
+        ),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('GET APARTMENT DETAILS ERROR: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> saveApartmentDetails(
+    String propertyId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final accessToken = await _secureStorage.getAccessToken();
+      // First try GET to see if it already exists
+      final existing = await getApartmentDetails(propertyId);
+      final isUpdate = existing != null;
+
+      final url = '/api/v1/properties/$propertyId/apartment-details';
+      final response = isUpdate
+          ? await _dio.put(
+              url,
+              data: data,
+              options: Options(
+                headers: {
+                  if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+                  'Content-Type': 'application/json',
+                },
+              ),
+            )
+          : await _dio.post(
+              url,
+              data: data,
+              options: Options(
+                headers: {
+                  if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+                  'Content-Type': 'application/json',
+                },
+              ),
+            );
+
+      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 204) {
+        if (response.data != null && response.data is Map) {
+          return Map<String, dynamic>.from(response.data as Map);
+        }
+        return data;
+      }
+      throw Exception('Failed to save apartment details: ${response.statusCode}');
+    } catch (e) {
+      debugPrint('SAVE APARTMENT DETAILS ERROR: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> setDraftStep(String propertyId, int step) async {
+    await _secureStorage.setDraftStep(propertyId, step);
+  }
+
+  Future<int> getDraftStep(String propertyId) async {
+    return await _secureStorage.getDraftStep(propertyId);
   }
 }
 

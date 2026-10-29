@@ -200,6 +200,317 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     }
   }
 
+  Future<void> _handleMarkSold(AgentPropertyItem item) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.monetization_on_rounded, color: Color(0xFF10B981)),
+            SizedBox(width: 8),
+            Text('Mark as Sold'),
+          ],
+        ),
+        content: Text(
+          'Mark "${item.title}" as SOLD for buyer ${item.buyerName}?',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm Sale'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await _agentService.markSold(
+      item.propertyId,
+      buyerId: item.buyerUserId.isNotEmpty ? item.buyerUserId : null,
+    );
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Property successfully marked as SOLD!'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        _refreshAll();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to update property status to Sold.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRejectInquiry(AgentPropertyItem item) async {
+    final reasonController = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.block_rounded, color: Color(0xFFEF4444)),
+            SizedBox(width: 8),
+            Text('Reject Inquiry'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Reject buyer ${item.buyerName}\'s inquiry for "${item.title}"?',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                labelText: 'Reason for Rejection *',
+                hintText: 'Enter specific rejection justification',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please provide a rejection reason.')),
+                );
+                return;
+              }
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Reject Inquiry'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await _agentService.rejectInquiry(
+      item.propertyId,
+      buyerId: item.buyerUserId.isNotEmpty ? item.buyerUserId : null,
+      reason: reasonController.text.trim(),
+    );
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Inquiry rejected and closed.'),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        _refreshAll();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to reject inquiry.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRejectVisit(AgentPropertyItem item) async {
+    final reasonController = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.cancel_outlined, color: Color(0xFFEF4444)),
+            SizedBox(width: 8),
+            Text('Reject Visit Request'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Decline visit request for "${item.title}"?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                labelText: 'Reason *',
+                hintText: 'e.g. Property unavailable at this time slot',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Decline'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await _agentService.rejectInquiry(
+      item.propertyId,
+      buyerId: item.buyerUserId.isNotEmpty ? item.buyerUserId : null,
+      reason: reasonController.text.trim(),
+    );
+
+    if (mounted) {
+      if (success) {
+        _refreshAll();
+      }
+    }
+  }
+
+  Future<void> _handleVerifyDocuments(AgentPropertyItem item) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.verified_rounded, color: primaryCyan),
+            SizedBox(width: 8),
+            Text('Verify Documents'),
+          ],
+        ),
+        content: Text('Mark documents as verified and completed for "${item.title}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: primaryCyan, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Verify & Complete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Navigate to details to view and verify documents or complete
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId)),
+      ).then((_) => _refreshAll());
+    }
+  }
+
+  Future<void> _handleRejectDocuments(AgentPropertyItem item) async {
+    final reasonController = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.thumb_down_alt_outlined, color: Color(0xFFEF4444)),
+            SizedBox(width: 8),
+            Text('Reject Documents'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter correction/rejection requirements for the seller/buyer:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                labelText: 'Rejection Reason *',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white),
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Reject Documents'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await _agentService.rejectInquiry(
+      item.propertyId,
+      buyerId: item.buyerUserId.isNotEmpty ? item.buyerUserId : null,
+      reason: 'Documents rejected: ${reasonController.text.trim()}',
+    );
+
+    if (mounted && success) {
+      _refreshAll();
+    }
+  }
+
   void _openChatWithBuyer(AgentPropertyItem item) {
     if (item.buyerUserId.isEmpty && item.buyerName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -643,6 +954,8 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         item: item,
                         isMarkingVisited: _markingVisitedPropertyId == item.propertyId,
                         onMarkVisited: () => _handleMarkVisited(item),
+                        onMarkSold: () => _handleMarkSold(item),
+                        onRejectInquiry: () => _handleRejectInquiry(item),
                         onChatWithBuyer: () => _openChatWithBuyer(item),
                         onTap: () {
                           Navigator.push(
@@ -698,6 +1011,9 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         item: item,
                         isMarkingVisited: _markingVisitedPropertyId == item.propertyId,
                         onMarkVisited: () => _handleMarkVisited(item),
+                        onRejectVisit: () => _handleRejectVisit(item),
+                        onMarkSold: () => _handleMarkSold(item),
+                        onRejectInquiry: () => _handleRejectInquiry(item),
                         onChatWithBuyer: () => _openChatWithBuyer(item),
                         onTap: () {
                           Navigator.push(
@@ -751,6 +1067,10 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                       final item = _pendingDocuments[i];
                       return AgentPropertyCard(
                         item: item,
+                        onVerifyDocuments: () => _handleVerifyDocuments(item),
+                        onRejectDocuments: () => _handleRejectDocuments(item),
+                        onMarkSold: () => _handleMarkSold(item),
+                        onRejectInquiry: () => _handleRejectInquiry(item),
                         onChatWithBuyer: () => _openChatWithBuyer(item),
                         onTap: () {
                           Navigator.push(

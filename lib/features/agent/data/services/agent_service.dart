@@ -197,6 +197,125 @@ class AgentService {
     }
   }
 
+  // ============================================================
+  // MARK AS SOLD
+  // ============================================================
+  Future<bool> markSold(String propertyId, {String? buyerId}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/buyer/property-interactions/$propertyId/sold';
+      final body = buyerId != null ? {'buyerId': buyerId} : null;
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('MARK SOLD ERROR: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // REJECT INQUIRY
+  // ============================================================
+  Future<bool> rejectInquiry(String propertyId, {String? buyerId, required String reason}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/buyer/property-interactions/$propertyId/reject';
+      final body = {'buyerId': buyerId, 'reason': reason};
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('REJECT INQUIRY ERROR: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // CONFIRM / APPROVE VISIT
+  // ============================================================
+  Future<bool> confirmVisit(String visitId, {String? notes}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/visits/$visitId/confirm';
+      final body = {'notes': notes};
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('CONFIRM VISIT ERROR: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // REJECT VISIT
+  // ============================================================
+  Future<bool> rejectVisit(String visitId, {required String reason}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/visits/$visitId/reject';
+      final body = {'reason': reason};
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('REJECT VISIT ERROR: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // UPDATE DOCUMENT STATUS (VERIFY / REJECT)
+  // ============================================================
+  Future<bool> updateDocumentStatus(
+    String propertyId,
+    String documentId,
+    int status, {
+    String? rejectionReason,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/properties/$propertyId/documents/$documentId/status';
+      final body = {
+        'status': status,
+        if (rejectionReason != null && rejectionReason.isNotEmpty)
+          'rejectionReason': rejectionReason,
+      };
+
+      final response = await _dio.patch(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      debugPrint('UPDATE DOCUMENT STATUS ERROR: $e');
+      return false;
+    }
+  }
+
   void dispose() {
     _dio.close();
   }

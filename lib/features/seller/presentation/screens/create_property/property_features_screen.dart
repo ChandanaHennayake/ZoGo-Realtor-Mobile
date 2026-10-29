@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_amenities_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_basic_screen.dart';
 
 class PropertyFeaturesScreen extends StatefulWidget {
   final String propertyId;
@@ -17,207 +18,218 @@ class PropertyFeaturesScreen extends StatefulWidget {
 }
 
 class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
-  static const Color primaryColor = Color(0xFF00C6D4);
+  static const Color primaryCyan = Color(0xFF00C6D4);
 
+  final _formKey = GlobalKey<FormState>();
   final SellerService _sellerService = SellerService();
-  final Set<int> _selectedFeatureIds = {};
-  String _selectedCategory = 'All';
+
+  bool _isLoading = true;
   bool _isSaving = false;
+
+  // Master options
+  List<Map<String, dynamic>> _condominiums = [];
+  List<Map<String, dynamic>> _apartmentTypes = [];
+  List<Map<String, dynamic>> _furnishingTypes = [];
+  List<Map<String, dynamic>> _viewTypes = [];
+  List<Map<String, dynamic>> _masterFeatures = [];
+
+  // Apartment Details State
+  String? _selectedCondominiumId; // GUID or null
+  int? _selectedApartmentTypeId;
+  int? _selectedFurnishingTypeId;
+  int? _selectedViewTypeId;
+
+  final TextEditingController _floorNumberController = TextEditingController();
+  final TextEditingController _unitNumberController = TextEditingController();
+  final TextEditingController _floorAreaController = TextEditingController();
+
+  bool _isCornerUnit = false;
+  int _bedrooms = 2;
+  int _masterBedrooms = 1;
+  int _bathrooms = 2;
+  int _attachedBathrooms = 1;
+  int _balconies = 1;
+
+  // Utility Space Toggles
+  bool _hasMaidRoom = false;
+  bool _hasMaidBathroom = false;
+  bool _hasLaundryArea = false;
+  bool _hasStorageRoom = false;
+  bool _hasWalkInCloset = false;
+  bool _hasDriversRoom = false;
+
+  // Selected Feature IDs (from Features master table)
+  final Set<int> _selectedFeatureIds = {};
 
   @override
   void initState() {
     super.initState();
-    _loadExistingFeatures();
+    _loadAllData();
   }
 
-  Future<void> _loadExistingFeatures() async {
+  @override
+  void dispose() {
+    _floorNumberController.dispose();
+    _unitNumberController.dispose();
+    _floorAreaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAllData() async {
+    setState(() => _isLoading = true);
+
     try {
-      final list = await _sellerService.getPropertyFeatures(widget.propertyId);
-      if (!mounted) return;
-      setState(() {
-        for (final item in list) {
-          final id = (item['featureId'] ?? item['FeatureId'] ?? item['id']) as num?;
-          if (id != null) {
-            _selectedFeatureIds.add(id.toInt());
-          }
+      final futures = await Future.wait([
+        _sellerService.getCondominiums(),
+        _sellerService.getApartmentTypes(),
+        _sellerService.getFurnishingTypes(),
+        _sellerService.getViewTypes(),
+        _sellerService.getFeatures(),
+        _sellerService.getApartmentDetails(widget.propertyId),
+        _sellerService.getPropertyFeatures(widget.propertyId),
+      ]);
+
+      _condominiums = futures[0] as List<Map<String, dynamic>>;
+      _apartmentTypes = futures[1] as List<Map<String, dynamic>>;
+      _furnishingTypes = futures[2] as List<Map<String, dynamic>>;
+      _viewTypes = futures[3] as List<Map<String, dynamic>>;
+      _masterFeatures = futures[4] as List<Map<String, dynamic>>;
+
+      final aptData = futures[5] as Map<String, dynamic>?;
+      if (aptData != null) {
+        _selectedCondominiumId = aptData['condominiumId']?.toString();
+        _selectedApartmentTypeId = (aptData['apartmentTypeId'] as num?)?.toInt();
+        _selectedFurnishingTypeId = (aptData['furnishingTypeId'] as num?)?.toInt();
+        _selectedViewTypeId = (aptData['viewTypeId'] as num?)?.toInt();
+
+        if (aptData['floorNumber'] != null) {
+          _floorNumberController.text = aptData['floorNumber'].toString();
         }
-      });
-    } catch (_) {}
-  }
+        if (aptData['unitNumber'] != null) {
+          _unitNumberController.text = aptData['unitNumber'].toString();
+        }
+        if (aptData['floorAreaSqFt'] != null) {
+          _floorAreaController.text = aptData['floorAreaSqFt'].toString();
+        }
 
-  final List<Map<String, dynamic>> _features = const [
-    {
-      'id': 1,
-      'name': 'Swimming Pool',
-      'icon': Icons.pool_outlined,
-      'category': 'Outdoors',
-    },
-    {
-      'id': 2,
-      'name': 'Garden',
-      'icon': Icons.yard_outlined,
-      'category': 'Outdoors',
-    },
-    {
-      'id': 3,
-      'name': 'Balcony',
-      'icon': Icons.balcony_outlined,
-      'category': 'General',
-    },
-    {
-      'id': 4,
-      'name': 'Parking',
-      'icon': Icons.local_parking_outlined,
-      'category': 'General',
-    },
-    {
-      'id': 5,
-      'name': 'Security',
-      'icon': Icons.security_outlined,
-      'category': 'Safety',
-    },
-    {
-      'id': 6,
-      'name': 'CCTV',
-      'icon': Icons.videocam_outlined,
-      'category': 'Safety',
-    },
-    {
-      'id': 7,
-      'name': 'Air Conditioning',
-      'icon': Icons.ac_unit_outlined,
-      'category': 'Comfort',
-    },
-    {
-      'id': 8,
-      'name': 'Elevator',
-      'icon': Icons.elevator_outlined,
-      'category': 'Building',
-    },
-    {
-      'id': 9,
-      'name': 'Generator',
-      'icon': Icons.electrical_services_outlined,
-      'category': 'Utilities',
-    },
-    {
-      'id': 10,
-      'name': 'Gym',
-      'icon': Icons.fitness_center_outlined,
-      'category': 'Fitness',
-    },
-    {
-      'id': 11,
-      'name': 'Clubhouse',
-      'icon': Icons.meeting_room_outlined,
-      'category': 'Community',
-    },
-    {
-      'id': 12,
-      'name': 'Playground',
-      'icon': Icons.park_outlined,
-      'category': 'Community',
-    },
-    {
-      'id': 13,
-      'name': 'Rooftop Terrace',
-      'icon': Icons.deck_outlined,
-      'category': 'Outdoors',
-    },
-    {
-      'id': 14,
-      'name': 'Water Tank',
-      'icon': Icons.water_drop_outlined,
-      'category': 'Utilities',
-    },
-    {
-      'id': 15,
-      'name': 'Solar Power',
-      'icon': Icons.solar_power_outlined,
-      'category': 'Utilities',
-    },
-    {
-      'id': 16,
-      'name': 'Road Access',
-      'icon': Icons.add_road_outlined,
-      'category': 'General',
-    },
-    {
-      'id': 17,
-      'name': 'Fenced',
-      'icon': Icons.fence_outlined,
-      'category': 'Safety',
-    },
-  ];
+        _isCornerUnit = aptData['isCornerUnit'] == true;
+        _bedrooms = (aptData['bedrooms'] as num?)?.toInt() ?? 2;
+        _masterBedrooms = (aptData['masterBedrooms'] as num?)?.toInt() ?? 1;
+        _bathrooms = (aptData['bathrooms'] as num?)?.toInt() ?? 2;
+        _attachedBathrooms = (aptData['attachedBathrooms'] as num?)?.toInt() ?? 1;
+        _balconies = (aptData['balconies'] as num?)?.toInt() ?? 1;
 
-  List<String> get _categories {
-    final set = <String>{'All'};
-    for (final f in _features) {
-      final cat = f['category'] as String?;
-      if (cat != null) set.add(cat);
-    }
-    return set.toList();
-  }
-
-  List<Map<String, dynamic>> get _filteredFeatures {
-    if (_selectedCategory == 'All') return _features;
-    return _features
-        .where((f) => f['category'] == _selectedCategory)
-        .toList();
-  }
-
-  void _toggleFeature(int id) {
-    if (_isSaving) return;
-    setState(() {
-      if (_selectedFeatureIds.contains(id)) {
-        _selectedFeatureIds.remove(id);
+        _hasMaidRoom = aptData['hasMaidRoom'] == true;
+        _hasMaidBathroom = aptData['hasMaidBathroom'] == true;
+        _hasLaundryArea = aptData['hasLaundryArea'] == true;
+        _hasStorageRoom = aptData['hasStorageRoom'] == true;
+        _hasWalkInCloset = aptData['hasWalkInCloset'] == true;
+        _hasDriversRoom = aptData['hasDriversRoom'] == true;
       } else {
-        _selectedFeatureIds.add(id);
+        // Defaults from loaded masters
+        if (_apartmentTypes.isNotEmpty) {
+          _selectedApartmentTypeId = (_apartmentTypes.first['id'] as num?)?.toInt();
+        }
+        if (_furnishingTypes.isNotEmpty) {
+          _selectedFurnishingTypeId = (_furnishingTypes.first['id'] as num?)?.toInt();
+        }
+        if (_viewTypes.isNotEmpty) {
+          _selectedViewTypeId = (_viewTypes.first['id'] as num?)?.toInt();
+        }
       }
-    });
+
+      final existingFeatures = futures[6] as List<Map<String, dynamic>>;
+      for (final f in existingFeatures) {
+        final id = (f['featureId'] ?? f['FeatureId'] ?? f['id']) as num?;
+        if (id != null) {
+          _selectedFeatureIds.add(id.toInt());
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading Section 02 data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  Future<void> _saveFeaturesAndProceed({bool exitAfterSave = false}) async {
-    if (_isSaving) return;
+  Future<void> _saveAndProceed({bool exitAfterSave = false}) async {
+    FocusScope.of(context).unfocus();
 
-    setState(() {
-      _isSaving = true;
-    });
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please correct errors before proceeding.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final double? area = double.tryParse(_floorAreaController.text.trim());
+    if (area == null || area <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid floor area (SqFt).'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
 
     try {
-      if (_selectedFeatureIds.isNotEmpty) {
-        await _sellerService.addPropertyFeatures(
-          widget.propertyId,
-          _selectedFeatureIds.toList(),
-        );
-      }
+      final int? floorNum = int.tryParse(_floorNumberController.text.trim());
+      final String? unitNum = _unitNumberController.text.trim().isEmpty ? null : _unitNumberController.text.trim();
+
+      final aptPayload = {
+        'condominiumId': (_selectedCondominiumId != null && _selectedCondominiumId!.isNotEmpty) ? _selectedCondominiumId : null,
+        'apartmentTypeId': _selectedApartmentTypeId,
+        'floorNumber': floorNum,
+        'unitNumber': unitNum,
+        'isCornerUnit': _isCornerUnit,
+        'floorAreaSqFt': area,
+        'bedrooms': _bedrooms,
+        'masterBedrooms': _masterBedrooms,
+        'bathrooms': _bathrooms,
+        'attachedBathrooms': _attachedBathrooms,
+        'balconies': _balconies,
+        'furnishingTypeId': _selectedFurnishingTypeId,
+        'viewTypeId': _selectedViewTypeId,
+        'hasMaidRoom': _hasMaidRoom,
+        'hasMaidBathroom': _hasMaidBathroom,
+        'hasLaundryArea': _hasLaundryArea,
+        'hasStorageRoom': _hasStorageRoom,
+        'hasWalkInCloset': _hasWalkInCloset,
+        'hasDriversRoom': _hasDriversRoom,
+      };
+
+      await Future.wait([
+        _sellerService.saveApartmentDetails(widget.propertyId, aptPayload),
+        _sellerService.syncPropertyFeatures(widget.propertyId, _selectedFeatureIds),
+      ]);
 
       if (!mounted) return;
 
-      setState(() {
-        _isSaving = false;
-      });
+      setState(() => _isSaving = false);
 
-      if (_selectedFeatureIds.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Features (${_selectedFeatureIds.length}) saved successfully!',
-            ),
-            backgroundColor: Colors.green.shade600,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Property details & features saved successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      await _sellerService.setDraftStep(widget.propertyId, exitAfterSave ? 2 : 3);
+      if (!mounted) return;
 
       if (exitAfterSave) {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context, true);
-        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
         return;
       }
 
-      // Navigate to Amenities Screen (Step 3)
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -229,126 +241,680 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _isSaving = false;
-      });
-
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save features: $e'),
-          backgroundColor: Colors.red.shade700,
-          duration: const Duration(seconds: 4),
+          content: Text('Error saving details: $e'),
+          backgroundColor: Colors.redAccent,
         ),
       );
     }
   }
 
+  // ============================================================
+  // UI BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
-    final typeName = widget.propertyType ?? 'Property';
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF7F9FA),
       appBar: AppBar(
-        title: const Text(
-          'Property Features',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        centerTitle: false,
         backgroundColor: Colors.white,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        centerTitle: true,
+        title: const Text(
+          'Property Details & Features',
+          style: TextStyle(
+            color: Color(0xFF1A1A1A),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        iconTheme: const IconThemeData(
+          color: Color(0xFF1A1A1A),
+        ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildProgress(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: _isLoading
+            ? const Center(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: 8),
-                    const Text(
-                      'What does your property offer?',
+                    CircularProgressIndicator(color: primaryCyan),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading property details & master features...',
                       style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
+                        color: Color(0xFF6B7280),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Select the private features available with your property.',
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.5,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    _buildPropertyTypeCard(typeName),
-                    const SizedBox(height: 20),
-                    _buildCategoryFilter(),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Features',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        if (_selectedFeatureIds.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '${_selectedFeatureIds.length} selected',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: primaryColor,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildFeatureGrid(),
-                    const SizedBox(height: 24),
-                    _buildInfoCard(),
                   ],
                 ),
+              )
+            : Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildProgress(),
+                            const SizedBox(height: 24),
+
+                            const Text(
+                              'Section 02 — Property Details',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1A1A1A),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Configure unit specifications, floor area, layout, furnishings, views, and specific interior features.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                height: 1.5,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+
+                            // 1. Building & Project Information
+                            _buildSectionCard(
+                              title: 'Apartment & Building Specification',
+                              icon: Icons.apartment_outlined,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Condominium / Project Name'),
+                                  const SizedBox(height: 8),
+                                  DropdownButtonFormField<String?>(
+                                    value: _condominiums.any((c) => c['id']?.toString() == _selectedCondominiumId)
+                                        ? _selectedCondominiumId
+                                        : null,
+                                    isExpanded: true,
+                                    decoration: _inputDecoration(
+                                      hintText: 'Select Condominium Project (or None)',
+                                      prefixIcon: Icons.business_outlined,
+                                    ),
+                                    items: [
+                                      const DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Text('Stand-alone / Independent Building'),
+                                      ),
+                                      ..._condominiums.map((c) {
+                                        final id = c['id']?.toString();
+                                        final name = c['name']?.toString() ?? 'Condo';
+                                        return DropdownMenuItem<String?>(
+                                          value: id,
+                                          child: Text(name),
+                                        );
+                                      }),
+                                    ],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _selectedCondominiumId = val;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  _buildLabel('Apartment Type', required: true),
+                                  const SizedBox(height: 8),
+                                  DropdownButtonFormField<int>(
+                                    value: _apartmentTypes.any((a) => (a['id'] as num?)?.toInt() == _selectedApartmentTypeId)
+                                        ? _selectedApartmentTypeId
+                                        : null,
+                                    isExpanded: true,
+                                    decoration: _inputDecoration(
+                                      hintText: 'Select Apartment Type',
+                                      prefixIcon: Icons.roofing_outlined,
+                                    ),
+                                    items: _apartmentTypes.map((a) {
+                                      final id = (a['id'] as num).toInt();
+                                      final name = a['name']?.toString() ?? 'Type';
+                                      return DropdownMenuItem<int>(
+                                        value: id,
+                                        child: Text(name),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _selectedApartmentTypeId = val;
+                                      });
+                                    },
+                                    validator: (val) => val == null ? 'Apartment type is required.' : null,
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildLabel('Floor No.'),
+                                            const SizedBox(height: 8),
+                                            TextFormField(
+                                              controller: _floorNumberController,
+                                              keyboardType: TextInputType.number,
+                                              decoration: _inputDecoration(
+                                                hintText: 'e.g. 14',
+                                                prefixIcon: Icons.layers_outlined,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildLabel('Unit No.'),
+                                            const SizedBox(height: 8),
+                                            TextFormField(
+                                              controller: _unitNumberController,
+                                              decoration: _inputDecoration(
+                                                hintText: 'e.g. 14-B',
+                                                prefixIcon: Icons.tag_outlined,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF9FAFB),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Corner Unit',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF1A1A1A),
+                                              ),
+                                            ),
+                                            Text(
+                                              'Has extra windows and natural light',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF6B7280),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Switch.adaptive(
+                                          value: _isCornerUnit,
+                                          activeTrackColor: primaryCyan,
+                                          onChanged: (val) {
+                                            setState(() => _isCornerUnit = val);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 2. Space Dimensions & Quantities
+                            _buildSectionCard(
+                              title: 'Space Details & Dimensions',
+                              icon: Icons.square_foot_outlined,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Total Floor Area (Sq.Ft.)', required: true),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: _floorAreaController,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    decoration: _inputDecoration(
+                                      hintText: 'e.g. 1250',
+                                      prefixIcon: Icons.straighten_outlined,
+                                    ),
+                                    validator: (val) {
+                                      final text = val?.trim() ?? '';
+                                      if (text.isEmpty) return 'Floor area is required.';
+                                      final num = double.tryParse(text);
+                                      if (num == null || num <= 0) return 'Enter a valid area in SqFt.';
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  _buildCounterRow(
+                                    label: 'Bedrooms',
+                                    value: _bedrooms,
+                                    icon: Icons.bed_outlined,
+                                    onChanged: (v) => setState(() => _bedrooms = v),
+                                    min: 0,
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  _buildCounterRow(
+                                    label: 'Master Bedrooms',
+                                    value: _masterBedrooms,
+                                    icon: Icons.single_bed_outlined,
+                                    onChanged: (v) => setState(() => _masterBedrooms = v),
+                                    min: 0,
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  _buildCounterRow(
+                                    label: 'Bathrooms',
+                                    value: _bathrooms,
+                                    icon: Icons.bathtub_outlined,
+                                    onChanged: (v) => setState(() => _bathrooms = v),
+                                    min: 0,
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  _buildCounterRow(
+                                    label: 'Attached Bathrooms',
+                                    value: _attachedBathrooms,
+                                    icon: Icons.shower_outlined,
+                                    onChanged: (v) => setState(() => _attachedBathrooms = v),
+                                    min: 0,
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  _buildCounterRow(
+                                    label: 'Balconies',
+                                    value: _balconies,
+                                    icon: Icons.balcony_outlined,
+                                    onChanged: (v) => setState(() => _balconies = v),
+                                    min: 0,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 3. View & Furnishing
+                            _buildSectionCard(
+                              title: 'View & Furnishing',
+                              icon: Icons.panorama_outlined,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Furnishing Type'),
+                                  const SizedBox(height: 8),
+                                  DropdownButtonFormField<int>(
+                                    value: _furnishingTypes.any((f) => (f['id'] as num?)?.toInt() == _selectedFurnishingTypeId)
+                                        ? _selectedFurnishingTypeId
+                                        : null,
+                                    isExpanded: true,
+                                    decoration: _inputDecoration(
+                                      hintText: 'Select Furnishing Status',
+                                      prefixIcon: Icons.chair_outlined,
+                                    ),
+                                    items: _furnishingTypes.map((f) {
+                                      final id = (f['id'] as num).toInt();
+                                      final name = f['name']?.toString() ?? 'Furnishing';
+                                      return DropdownMenuItem<int>(
+                                        value: id,
+                                        child: Text(name),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      setState(() => _selectedFurnishingTypeId = val);
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  _buildLabel('View Type'),
+                                  const SizedBox(height: 8),
+                                  DropdownButtonFormField<int>(
+                                    value: _viewTypes.any((v) => (v['id'] as num?)?.toInt() == _selectedViewTypeId)
+                                        ? _selectedViewTypeId
+                                        : null,
+                                    isExpanded: true,
+                                    decoration: _inputDecoration(
+                                      hintText: 'Select View Type',
+                                      prefixIcon: Icons.visibility_outlined,
+                                    ),
+                                    items: _viewTypes.map((v) {
+                                      final id = (v['id'] as num).toInt();
+                                      final name = v['name']?.toString() ?? 'View';
+                                      return DropdownMenuItem<int>(
+                                        value: id,
+                                        child: Text(name),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      setState(() => _selectedViewTypeId = val);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 4. Utility & Additional Spaces
+                            _buildSectionCard(
+                              title: 'Utility & Staff Spaces',
+                              icon: Icons.home_repair_service_outlined,
+                              child: Column(
+                                children: [
+                                  _buildToggleTile(
+                                    title: "Maid's Room",
+                                    subtitle: 'Dedicated room for household help',
+                                    value: _hasMaidRoom,
+                                    onChanged: (v) => setState(() => _hasMaidRoom = v),
+                                  ),
+                                  _buildToggleTile(
+                                    title: "Maid's Bathroom",
+                                    subtitle: 'Separate bathroom for domestic staff',
+                                    value: _hasMaidBathroom,
+                                    onChanged: (v) => setState(() => _hasMaidBathroom = v),
+                                  ),
+                                  _buildToggleTile(
+                                    title: 'Laundry Area',
+                                    subtitle: 'Dedicated space for washer & drying',
+                                    value: _hasLaundryArea,
+                                    onChanged: (v) => setState(() => _hasLaundryArea = v),
+                                  ),
+                                  _buildToggleTile(
+                                    title: 'Storage Room',
+                                    subtitle: 'Enclosed storage or pantry room',
+                                    value: _hasStorageRoom,
+                                    onChanged: (v) => setState(() => _hasStorageRoom = v),
+                                  ),
+                                  _buildToggleTile(
+                                    title: 'Walk-In Closet',
+                                    subtitle: 'Spacious dressing wardrobe area',
+                                    value: _hasWalkInCloset,
+                                    onChanged: (v) => setState(() => _hasWalkInCloset = v),
+                                  ),
+                                  _buildToggleTile(
+                                    title: "Driver's Room",
+                                    subtitle: 'Allocated rest area for chauffeur',
+                                    value: _hasDriversRoom,
+                                    onChanged: (v) => setState(() => _hasDriversRoom = v),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // 5. Categorized Feature Clusters (from Features master table)
+                            _buildFeatureCategorySection(
+                              title: 'Selling Purpose',
+                              category: 'SellingPurpose',
+                              icon: Icons.sell_outlined,
+                            ),
+                            const SizedBox(height: 18),
+
+                            _buildFeatureCategorySection(
+                              title: 'Living & Dining Layout',
+                              category: 'LivingDiningLayout',
+                              icon: Icons.weekend_outlined,
+                            ),
+                            const SizedBox(height: 18),
+
+                            _buildFeatureCategorySection(
+                              title: 'Kitchen Types',
+                              category: 'KitchenType',
+                              icon: Icons.soup_kitchen_outlined,
+                            ),
+                            const SizedBox(height: 18),
+
+                            _buildFeatureCategorySection(
+                              title: 'Additional Spaces & Rooms',
+                              category: 'AdditionalSpace',
+                              icon: Icons.meeting_room_outlined,
+                            ),
+                            const SizedBox(height: 18),
+
+                            _buildFeatureCategorySection(
+                              title: 'Furniture Inclusions',
+                              category: 'Furniture',
+                              icon: Icons.chair_alt_outlined,
+                            ),
+                            const SizedBox(height: 18),
+
+                            _buildFeatureCategorySection(
+                              title: 'Kitchen Appliances',
+                              category: 'KitchenAppliance',
+                              icon: Icons.kitchen_outlined,
+                            ),
+                            const SizedBox(height: 18),
+
+                            _buildFeatureCategorySection(
+                              title: 'Laundry Equipment',
+                              category: 'LaundryAppliance',
+                              icon: Icons.local_laundry_service_outlined,
+                            ),
+                            const SizedBox(height: 18),
+
+                            _buildFeatureCategorySection(
+                              title: 'Comfort, Electronics & Smart Features',
+                              category: 'ComfortElectronics',
+                              icon: Icons.devices_other_outlined,
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Bottom Save & Next Button
+                  _buildBottomButton(),
+                ],
+              ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // WIDGET HELPERS
+  // ============================================================
+
+  Widget _buildFeatureCategorySection({
+    required String title,
+    required String category,
+    required IconData icon,
+  }) {
+    final features = _masterFeatures.where((f) {
+      final cat = f['category']?.toString() ?? '';
+      return cat.toLowerCase() == category.toLowerCase();
+    }).toList();
+
+    if (features.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildSectionCard(
+      title: title,
+      icon: icon,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 10,
+        children: features.map((f) {
+          final int id = (f['id'] as num).toInt();
+          final String name = f['name']?.toString() ?? '';
+          final bool isSelected = _selectedFeatureIds.contains(id);
+
+          return FilterChip(
+            label: Text(
+              name,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? primaryCyan : const Color(0xFF374151),
               ),
             ),
-            _buildBottomButton(),
-          ],
-        ),
+            selected: isSelected,
+            selectedColor: primaryCyan.withValues(alpha: 0.12),
+            backgroundColor: const Color(0xFFF9FAFB),
+            checkmarkColor: primaryCyan,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(
+                color: isSelected ? primaryCyan : const Color(0xFFE5E7EB),
+                width: isSelected ? 1.6 : 1,
+              ),
+            ),
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  _selectedFeatureIds.add(id);
+                } else {
+                  _selectedFeatureIds.remove(id);
+                }
+              });
+            },
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildCounterRow({
+    required String label,
+    required int value,
+    required IconData icon,
+    required ValueChanged<int> onChanged,
+    int min = 0,
+    int max = 20,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: const Color(0xFF6B7280)),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline, size: 22),
+                color: value > min ? primaryCyan : const Color(0xFFD1D5DB),
+                onPressed: value > min ? () => onChanged(value - 1) : null,
+              ),
+              Container(
+                constraints: const BoxConstraints(minWidth: 28),
+                alignment: Alignment.center,
+                child: Text(
+                  value.toString(),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, size: 22),
+                color: value < max ? primaryCyan : const Color(0xFFD1D5DB),
+                onPressed: value < max ? () => onChanged(value + 1) : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleTile({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            activeTrackColor: primaryCyan,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildProgress() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Row(
         children: [
           _buildStepItem(number: '1', title: 'Basic', isCompleted: true, isActive: false),
           _buildStepLine(true),
-          _buildStepItem(number: '2', title: 'Features', isCompleted: false, isActive: true),
+          _buildStepItem(number: '2', title: 'Details', isCompleted: false, isActive: true),
           _buildStepLine(false),
-          _buildStepItem(number: '3', title: 'Amenities', isCompleted: false, isActive: false),
+          _buildStepItem(number: '3', title: 'Facilities', isCompleted: false, isActive: false),
           _buildStepLine(false),
           _buildStepItem(number: '4', title: 'Financials', isCompleted: false, isActive: false),
           _buildStepLine(false),
@@ -365,7 +931,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.symmetric(horizontal: 3),
-        color: isCompleted ? primaryColor : const Color(0xFFE5E7EB),
+        color: isCompleted ? primaryCyan : const Color(0xFFE5E7EB),
       ),
     );
   }
@@ -383,7 +949,9 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
           height: 24,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isActive || isCompleted ? primaryColor : Colors.grey.shade300,
+            color: isActive
+                ? primaryCyan
+                : (isCompleted ? primaryCyan : const Color(0xFFE5E7EB)),
           ),
           child: Center(
             child: isCompleted
@@ -393,7 +961,7 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: isActive ? Colors.white : Colors.black45,
+                      color: isActive ? Colors.white : const Color(0xFF9CA3AF),
                     ),
                   ),
           ),
@@ -403,270 +971,195 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
           title,
           style: TextStyle(
             fontSize: 10,
-            fontWeight:
-                isActive || isCompleted ? FontWeight.w700 : FontWeight.w500,
-            color: isActive ? primaryColor : Colors.black87,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            color: isActive ? const Color(0xFF1A1A1A) : const Color(0xFF9CA3AF),
           ),
         ),
       ],
     );
   }
 
-
-  Widget _buildPropertyTypeCard(String propertyType) {
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: primaryColor.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: primaryColor.withValues(alpha: 0.20),
+          color: const Color(0xFFE5E7EB),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.home_work_outlined,
-              color: primaryColor,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Property ID: ${widget.propertyId.length > 12 ? '${widget.propertyId.substring(0, 12)}...' : widget.propertyId}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  propertyType,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildCategoryFilter() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _categories.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final cat = _categories[index];
-          final isSelected = cat == _selectedCategory;
-
-          return InkWell(
-            onTap: () {
-              setState(() {
-                _selectedCategory = cat;
-              });
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                color: isSelected ? primaryColor : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected ? primaryColor : Colors.grey.shade300,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  cat,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFeatureGrid() {
-    final list = _filteredFeatures;
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: list.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.55,
-      ),
-      itemBuilder: (context, index) {
-        final feature = list[index];
-        final id = feature['id'] as int;
-        final name = feature['name'] as String;
-        final icon = feature['icon'] as IconData;
-        final isSelected = _selectedFeatureIds.contains(id);
-
-        return InkWell(
-          onTap: () => _toggleFeature(id),
-          borderRadius: BorderRadius.circular(16),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? primaryColor.withValues(alpha: 0.08)
-                  : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isSelected ? primaryColor : Colors.grey.shade200,
-                width: isSelected ? 1.5 : 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: isSelected ? primaryColor : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: isSelected ? Colors.white : Colors.black54,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight:
-                              isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      if (feature['category'] != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          feature['category'] as String,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (isSelected)
-                  const Icon(
-                    Icons.check_circle,
-                    color: primaryColor,
-                    size: 18,
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildInfoCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: const Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, color: primaryColor, size: 21),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'You can select multiple features. These details will help buyers understand what your property offers.',
-              style: TextStyle(fontSize: 13, height: 1.5, color: Colors.black54),
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: primaryCyan.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: primaryCyan, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text, {bool required = false}) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF374151),
+          ),
+        ),
+        if (required) ...[
+          const SizedBox(width: 3),
+          const Text(
+            '*',
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String hintText,
+    required IconData prefixIcon,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: const TextStyle(
+        color: Color(0xFF9CA3AF),
+        fontSize: 13,
+      ),
+      prefixIcon: Icon(prefixIcon, color: const Color(0xFF9CA3AF), size: 20),
+      filled: true,
+      fillColor: const Color(0xFFF9FAFB),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 14,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: primaryCyan, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
       ),
     );
   }
 
   Widget _buildBottomButton() {
-    final count = _selectedFeatureIds.length;
-    final buttonText = count > 0
-        ? 'Next: Amenities ($count)'
-        : 'Next: Amenities';
-
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: const BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -3),
+        border: Border(
+          top: BorderSide(
+            color: Color(0xFFE5E7EB),
           ),
-        ],
+        ),
       ),
       child: Row(
         children: [
           Expanded(
-            flex: 1,
+            flex: 2,
             child: SizedBox(
-              height: 52,
-              child: OutlinedButton(
-                onPressed: _isSaving ? null : () => _saveFeaturesAndProceed(exitAfterSave: true),
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PropertyBasicScreen(propertyId: widget.propertyId),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.arrow_back, size: 15),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Previous',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: primaryColor, width: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 50,
+              child: OutlinedButton(
+                onPressed: _isSaving ? null : () => _saveAndProceed(exitAfterSave: true),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  side: const BorderSide(color: primaryCyan, width: 1.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -676,26 +1169,27 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                   child: Text(
                     'Save & Exit',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: primaryColor,
+                      color: primaryCyan,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            flex: 1,
+            flex: 3,
             child: SizedBox(
-              height: 52,
+              height: 50,
               child: ElevatedButton(
-                onPressed: _isSaving ? null : () => _saveFeaturesAndProceed(exitAfterSave: false),
+                onPressed: _isSaving ? null : () => _saveAndProceed(exitAfterSave: false),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  backgroundColor: primaryCyan,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: primaryCyan.withValues(alpha: 0.6),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -707,26 +1201,29 @@ class _PropertyFeaturesScreenState extends State<PropertyFeaturesScreen> {
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          color: Colors.white,
                         ),
                       )
-                    : Row(
+                    : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
-                            child: Text(
-                              buttonText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Save & Next',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward, size: 16),
+                          SizedBox(width: 4),
+                          Icon(Icons.arrow_forward, size: 15),
                         ],
                       ),
               ),

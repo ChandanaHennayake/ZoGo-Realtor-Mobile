@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_legal_details_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_amenities_screen.dart';
 
 class PropertyFinancialsScreen extends StatefulWidget {
   final String propertyId;
@@ -174,10 +175,11 @@ class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
         ),
       );
 
+      await _sellerService.setDraftStep(widget.propertyId, exitAfterSave ? 4 : 5);
+      if (!mounted) return;
+
       if (exitAfterSave) {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context, true);
-        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
         return;
       }
 
@@ -439,11 +441,12 @@ class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Property ID: ${widget.propertyId.length > 12 ? '${widget.propertyId.substring(0, 12)}...' : widget.propertyId}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
+                const Text(
+                  'Step 4 of 7 • Financial Details & Charges',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -790,7 +793,7 @@ class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
 
   Widget _buildBottomButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -804,12 +807,56 @@ class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
       child: Row(
         children: [
           Expanded(
-            flex: 1,
+            flex: 2,
             child: SizedBox(
-              height: 52,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PropertyAmenitiesScreen(
+                          propertyId: widget.propertyId,
+                          propertyType: widget.propertyType,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.arrow_back, size: 15),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Previous',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 50,
               child: OutlinedButton(
                 onPressed: _isSaving ? null : () => _saveFinancials(exitAfterSave: true),
                 style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   side: const BorderSide(color: primaryColor, width: 1.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -820,7 +867,7 @@ class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
                   child: Text(
                     'Save & Exit',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: primaryColor,
                     ),
@@ -829,14 +876,15 @@ class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            flex: 1,
+            flex: 3,
             child: SizedBox(
-              height: 52,
+              height: 50,
               child: ElevatedButton(
                 onPressed: _isSaving ? null : () => _saveFinancials(exitAfterSave: false),
                 style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   backgroundColor: primaryColor,
                   disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
                   foregroundColor: Colors.white,
@@ -859,18 +907,21 @@ class _PropertyFinancialsScreenState extends State<PropertyFinancialsScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
-                            child: Text(
-                              'Next: Legal Details',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Save & Next',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
                           SizedBox(width: 4),
-                          Icon(Icons.arrow_forward, size: 16),
+                          Icon(Icons.arrow_forward, size: 15),
                         ],
                       ),
               ),

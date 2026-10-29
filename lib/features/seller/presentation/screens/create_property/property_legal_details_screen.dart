@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_documents_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_financials_screen.dart';
 
 class PropertyLegalDetailsScreen extends StatefulWidget {
   final String propertyId;
@@ -29,7 +30,7 @@ class _PropertyLegalDetailsScreenState
   final TextEditingController _legalIssueDescriptionController =
       TextEditingController();
 
-  int _ownershipType = 1; // 1: Freehold, 2: Leasehold, 3: Condominium Title, 4: Joint Ownership
+  int _ownershipType = 1;
   bool _hasMortgage = false;
   bool _hasLegalIssues = false;
   bool _legalVerified = false;
@@ -37,12 +38,7 @@ class _PropertyLegalDetailsScreenState
   bool _isLoading = true;
   bool _isSaving = false;
 
-  static const Map<int, String> _ownershipOptions = {
-    1: 'Freehold',
-    2: 'Leasehold',
-    3: 'Condo / Strata Title',
-    4: 'Joint Ownership',
-  };
+  List<Map<String, dynamic>> _ownershipTypes = [];
 
   @override
   void initState() {
@@ -59,8 +55,14 @@ class _PropertyLegalDetailsScreenState
 
   Future<void> _loadExistingLegalDetails() async {
     try {
-      final data =
-          await _sellerService.getPropertyLegalDetails(widget.propertyId);
+      final futures = await Future.wait([
+        _sellerService.getOwnershipTypes(),
+        _sellerService.getPropertyLegalDetails(widget.propertyId),
+      ]);
+
+      _ownershipTypes = futures[0] as List<Map<String, dynamic>>;
+      final data = futures[1] as Map<String, dynamic>?;
+
       if (data != null && mounted) {
         setState(() {
           if (data['ownershipType'] != null) {
@@ -83,6 +85,10 @@ class _PropertyLegalDetailsScreenState
           if (data['legalVerified'] != null) {
             _legalVerified = data['legalVerified'] == true;
           }
+        });
+      } else if (_ownershipTypes.isNotEmpty && mounted) {
+        setState(() {
+          _ownershipType = (_ownershipTypes.first['id'] as num).toInt();
         });
       }
     } catch (_) {
@@ -144,10 +150,11 @@ class _PropertyLegalDetailsScreenState
         ),
       );
 
+      await _sellerService.setDraftStep(widget.propertyId, exitAfterSave ? 5 : 6);
+      if (!mounted) return;
+
       if (exitAfterSave) {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context, true);
-        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
         return;
       }
 
@@ -380,11 +387,12 @@ class _PropertyLegalDetailsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Property ID: ${widget.propertyId.length > 12 ? '${widget.propertyId.substring(0, 12)}...' : widget.propertyId}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black54,
+                const Text(
+                  'Step 5 of 7 • Legal Details & Ownership',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -447,19 +455,29 @@ class _PropertyLegalDetailsScreenState
   }
 
   Widget _buildOwnershipTypeGrid() {
+    if (_ownershipTypes.isEmpty) {
+      return const Text(
+        'No ownership types loaded from database.',
+        style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+      );
+    }
+
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 10,
       mainAxisSpacing: 10,
-      childAspectRatio: 2.5,
+      childAspectRatio: 2.3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      children: _ownershipOptions.entries.map((entry) {
-        final isSelected = _ownershipType == entry.key;
+      children: _ownershipTypes.map((entry) {
+        final int id = (entry['id'] as num).toInt();
+        final String name = entry['name']?.toString() ?? 'Ownership';
+        final isSelected = _ownershipType == id;
+
         return InkWell(
           onTap: () {
             setState(() {
-              _ownershipType = entry.key;
+              _ownershipType = id;
             });
           },
           borderRadius: BorderRadius.circular(12),
@@ -486,7 +504,9 @@ class _PropertyLegalDetailsScreenState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    entry.value,
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -711,7 +731,7 @@ class _PropertyLegalDetailsScreenState
 
   Widget _buildBottomButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -725,12 +745,56 @@ class _PropertyLegalDetailsScreenState
       child: Row(
         children: [
           Expanded(
-            flex: 1,
+            flex: 2,
             child: SizedBox(
-              height: 52,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PropertyFinancialsScreen(
+                          propertyId: widget.propertyId,
+                          propertyType: widget.propertyType,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.arrow_back, size: 15),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Previous',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 50,
               child: OutlinedButton(
                 onPressed: _isSaving ? null : () => _saveLegalDetailsAndProceed(exitAfterSave: true),
                 style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   side: const BorderSide(color: primaryColor, width: 1.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -741,7 +805,7 @@ class _PropertyLegalDetailsScreenState
                   child: Text(
                     'Save & Exit',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: primaryColor,
                     ),
@@ -750,14 +814,15 @@ class _PropertyLegalDetailsScreenState
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            flex: 1,
+            flex: 3,
             child: SizedBox(
-              height: 52,
+              height: 50,
               child: ElevatedButton(
                 onPressed: _isSaving ? null : () => _saveLegalDetailsAndProceed(exitAfterSave: false),
                 style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   backgroundColor: primaryColor,
                   disabledBackgroundColor: primaryColor.withValues(alpha: 0.6),
                   foregroundColor: Colors.white,
@@ -780,18 +845,21 @@ class _PropertyLegalDetailsScreenState
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
-                            child: Text(
-                              'Next: Documents',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Save & Next',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
                           SizedBox(width: 4),
-                          Icon(Icons.arrow_forward, size: 16),
+                          Icon(Icons.arrow_forward, size: 15),
                         ],
                       ),
               ),

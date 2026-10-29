@@ -111,6 +111,19 @@ class SecureStorageService {
     await _storage.delete(key: _refreshTokenKey);
   }
 
+  Future<void> setDraftStep(String propertyId, int step) async {
+    await _storage.write(key: 'draft_step_$propertyId', value: step.toString());
+  }
+
+  Future<int> getDraftStep(String propertyId) async {
+    final val = await _storage.read(key: 'draft_step_$propertyId');
+    if (val != null) {
+      final parsed = int.tryParse(val);
+      if (parsed != null && parsed >= 1 && parsed <= 7) return parsed;
+    }
+    return 1;
+  }
+
   Future<void> clearAll() async {
     await _storage.deleteAll();
   }
