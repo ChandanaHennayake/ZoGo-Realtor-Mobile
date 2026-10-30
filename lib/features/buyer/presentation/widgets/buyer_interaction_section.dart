@@ -3,9 +3,17 @@ import '../../data/services/buyer_offer_service.dart';
 import '../../data/services/buyer_property_interaction_service.dart';
 import '../../data/services/buyer_visit_service.dart';
 import '../../models/buyer_property_interaction.dart';
+import '../../../../core/workflow/workflow_button_policy.dart';
+import 'visit_request_contact_sheet.dart';
 
 class BuyerInteractionSection extends StatefulWidget {
   final String propertyId;
+  final String? propertyTitle;
+  final int? districtId;
+  final String? districtName;
+  final String? agentName;
+  final String? agentPhoneNumber;
+  final String? agentUserId;
   final BuyerPropertyInteractionService? interactionService;
   final BuyerVisitService? visitService;
   final BuyerOfferService? offerService;
@@ -14,6 +22,12 @@ class BuyerInteractionSection extends StatefulWidget {
   const BuyerInteractionSection({
     super.key,
     required this.propertyId,
+    this.propertyTitle,
+    this.districtId,
+    this.districtName,
+    this.agentName,
+    this.agentPhoneNumber,
+    this.agentUserId,
     this.interactionService,
     this.visitService,
     this.offerService,
@@ -118,6 +132,60 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update stage: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleRequestDocuments() async {
+    if (_isUpdating) return;
+
+    final prev = _currentInteraction;
+    final optimistic = BuyerPropertyInteraction(
+      propertyId: widget.propertyId,
+      currentStatus: BuyerPropertyInteraction.statusDocumentsRequested,
+      currentStatusName: 'Documents Requested',
+      updatedAt: DateTime.now(),
+    );
+
+    setState(() {
+      _isUpdating = true;
+      _currentInteraction = optimistic;
+    });
+
+    try {
+      final updated = await _service.requestDocuments(widget.propertyId);
+      if (!mounted) return;
+      setState(() {
+        _currentInteraction = updated;
+        _isUpdating = false;
+      });
+      widget.onInteractionChanged?.call(updated);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+              SizedBox(width: 8),
+              Text('Documents requested successfully!'),
+            ],
+          ),
+          backgroundColor: Color(0xFF8B5CF6),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _currentInteraction = prev;
+        _isUpdating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$e'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -274,98 +342,158 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
 
             const SizedBox(height: 18),
 
-            // Available Buyer Actions
-            const Text(
-              'Available Actions',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: darkText,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _isUpdating || status == BuyerPropertyInteraction.statusVisitRequested
-                      ? null
-                      : _handleRequestVisit,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF3B82F6),
-                    side: BorderSide(
-                      color: status == BuyerPropertyInteraction.statusVisitRequested
-                          ? const Color(0xFF3B82F6)
-                          : const Color(0xFF3B82F6).withValues(alpha: 0.4),
-                      width: status == BuyerPropertyInteraction.statusVisitRequested ? 2 : 1,
-                    ),
-                    backgroundColor: status == BuyerPropertyInteraction.statusVisitRequested
-                        ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            Builder(builder: (context) {
+              final isClosed = WorkflowButtonPolicy.isClosed(status);
+              final visitAction = WorkflowButtonPolicy.getBuyerVisitAction(
+                interactionStatus: status,
+                isUpdating: _isUpdating,
+              );
+              final docAction = WorkflowButtonPolicy.getBuyerDocumentAction(
+                interactionStatus: status,
+                isUpdating: _isUpdating,
+              );
+              final offerAction = WorkflowButtonPolicy.getBuyerOfferAction(
+                interactionStatus: status,
+                isUpdating: _isUpdating,
+              );
+
+              if (isClosed) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: stageColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: stageColor.withValues(alpha: 0.3)),
                   ),
-                  icon: const Icon(Icons.calendar_month_outlined, size: 16, color: Color(0xFF3B82F6)),
-                  label: Text(
-                    status == BuyerPropertyInteraction.statusVisitRequested
-                        ? 'Visit Requested (Pending)'
-                        : 'Request Visit',
-                    style: const TextStyle(
-                      fontSize: 12,
+                  child: Row(
+                    children: [
+                      Icon(
+                        status == BuyerPropertyInteraction.statusSold
+                            ? Icons.verified_rounded
+                            : status == BuyerPropertyInteraction.statusRejected
+                                ? Icons.cancel_rounded
+                                : Icons.info_outline_rounded,
+                        color: stageColor,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              status == BuyerPropertyInteraction.statusSold
+                                  ? 'Sale Completed'
+                                  : status == BuyerPropertyInteraction.statusRejected
+                                      ? 'Inquiry Rejected'
+                                      : 'Inquiry Cancelled',
+                              style: TextStyle(
+                                color: stageColor,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              status == BuyerPropertyInteraction.statusSold
+                                  ? 'This property inquiry has concluded successfully with a sale.'
+                                  : status == BuyerPropertyInteraction.statusRejected
+                                      ? 'This inquiry has been declined by the agent or seller.'
+                                      : 'This inquiry was cancelled and is no longer active.',
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Available Actions',
+                    style: TextStyle(
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF3B82F6),
+                      color: darkText,
                     ),
                   ),
-                ),
-                _buildActionButton(
-                  label: 'Request Documents',
-                  icon: Icons.description_outlined,
-                  color: const Color(0xFF8B5CF6),
-                  targetStatus: BuyerPropertyInteraction.statusDocumentsRequested,
-                  currentStatus: status,
-                  actionName: 'Documents requested',
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isUpdating ? null : _handleSubmitOffer,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFEC4899),
-                    side: BorderSide(
-                      color: status == BuyerPropertyInteraction.statusOfferSubmitted
-                          ? const Color(0xFFEC4899)
-                          : const Color(0xFFEC4899).withValues(alpha: 0.4),
-                      width: status == BuyerPropertyInteraction.statusOfferSubmitted ? 2 : 1,
-                    ),
-                    backgroundColor: status == BuyerPropertyInteraction.statusOfferSubmitted
-                        ? const Color(0xFFEC4899).withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (visitAction.isVisible)
+                        _buildActionButton(
+                          label: visitAction.label,
+                          icon: visitAction.icon ?? Icons.calendar_month_outlined,
+                          color: visitAction.color,
+                          isEnabled: visitAction.isEnabled,
+                          disabledReason: visitAction.disabledReason,
+                          isCurrent: status == BuyerPropertyInteraction.statusVisitRequested,
+                          onTap: _handleRequestVisit,
+                        ),
+                      if (docAction.isVisible)
+                        _buildActionButton(
+                          label: docAction.label,
+                          icon: docAction.icon ?? Icons.description_outlined,
+                          color: docAction.color,
+                          isEnabled: docAction.isEnabled,
+                          disabledReason: docAction.disabledReason,
+                          isCurrent: status == BuyerPropertyInteraction.statusDocumentsRequested,
+                          onTap: _handleRequestDocuments,
+                        ),
+                      if (offerAction.isVisible)
+                        _buildActionButton(
+                          label: offerAction.label,
+                          icon: offerAction.icon ?? Icons.local_offer_outlined,
+                          color: offerAction.color,
+                          isEnabled: offerAction.isEnabled,
+                          disabledReason: offerAction.disabledReason,
+                          isCurrent: status == BuyerPropertyInteraction.statusOfferSubmitted,
+                          onTap: _handleSubmitOffer,
+                        ),
+                      _buildActionButton(
+                        label: 'Not Interested',
+                        icon: Icons.close_rounded,
+                        color: const Color(0xFF6B7280),
+                        isEnabled: !_isUpdating && status != BuyerPropertyInteraction.statusNotInterested,
+                        onTap: () => _handleUpdateInteraction(
+                          BuyerPropertyInteraction.statusNotInterested,
+                          'Marked as not interested',
+                        ),
+                      ),
+                    ],
                   ),
-                  icon: const Icon(Icons.local_offer_outlined, size: 16, color: Color(0xFFEC4899)),
-                  label: Text(
-                    status == BuyerPropertyInteraction.statusOfferSubmitted
-                        ? 'Offer Submitted'
-                        : 'Submit Offer',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFEC4899),
+                  if (!docAction.isEnabled && docAction.disabledReason != null && status < BuyerPropertyInteraction.statusVisited) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            docAction.disabledReason!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF8B5CF6),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-                _buildActionButton(
-                  label: 'Not Interested',
-                  icon: Icons.close_rounded,
-                  color: const Color(0xFF6B7280),
-                  targetStatus: BuyerPropertyInteraction.statusNotInterested,
-                  currentStatus: status,
-                  actionName: 'Status updated to not interested',
-                ),
-              ],
-            ),
+                  ],
+                ],
+              );
+            }),
           ],
         ],
       ),
@@ -373,6 +501,29 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
   }
 
   Future<void> _handleRequestVisit() async {
+    await VisitRequestContactSheet.show(
+      context: context,
+      propertyId: widget.propertyId,
+      propertyTitle: widget.propertyTitle ?? 'Property Visit',
+      agentName: widget.agentName,
+      agentPhoneNumber: widget.agentPhoneNumber,
+      agentUserId: widget.agentUserId,
+      districtId: widget.districtId,
+      districtName: widget.districtName,
+      onScheduleAlternative: _showScheduleCalendarModal,
+      onInteractionUpdated: (updated) {
+        if (!mounted) return;
+        if (updated != null) {
+          setState(() {
+            _currentInteraction = updated;
+          });
+          widget.onInteractionChanged?.call(updated);
+        }
+      },
+    );
+  }
+
+  Future<void> _showScheduleCalendarModal() async {
     DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
     String selectedSlot = 'Morning (09:00 - 12:00)';
     final notesController = TextEditingController();
@@ -879,37 +1030,52 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
     required String label,
     required IconData icon,
     required Color color,
-    required int targetStatus,
-    required int currentStatus,
-    required String actionName,
+    required bool isEnabled,
+    String? disabledReason,
+    VoidCallback? onTap,
+    bool isCurrent = false,
   }) {
-    final isCurrent = currentStatus == targetStatus;
-
-    return OutlinedButton.icon(
-      onPressed: _isUpdating || isCurrent
-          ? null
-          : () => _handleUpdateInteraction(targetStatus, actionName),
+    final button = OutlinedButton.icon(
+      onPressed: isEnabled ? onTap : null,
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
+        disabledForegroundColor: const Color(0xFF94A3B8),
         side: BorderSide(
-          color: isCurrent ? color : color.withValues(alpha: 0.4),
+          color: isCurrent
+              ? color
+              : isEnabled
+                  ? color.withValues(alpha: 0.4)
+                  : const Color(0xFFE2E8F0),
           width: isCurrent ? 2 : 1,
         ),
-        backgroundColor: isCurrent ? color.withValues(alpha: 0.1) : Colors.transparent,
+        backgroundColor: isCurrent
+            ? color.withValues(alpha: 0.1)
+            : !isEnabled
+                ? const Color(0xFFF8FAFC)
+                : Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
-      icon: Icon(icon, size: 16, color: color),
+      icon: Icon(icon, size: 16, color: isEnabled ? color : const Color(0xFF94A3B8)),
       label: Text(
         label,
         style: TextStyle(
           fontSize: 12,
           fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
-          color: color,
+          color: isEnabled ? color : const Color(0xFF94A3B8),
         ),
       ),
     );
+
+    if (disabledReason != null && !isEnabled) {
+      return Tooltip(
+        message: disabledReason,
+        child: button,
+      );
+    }
+
+    return button;
   }
 }

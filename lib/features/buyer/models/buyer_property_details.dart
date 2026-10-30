@@ -47,6 +47,8 @@ class BuyerPropertyDetails {
   final String? addressLine1;
   final String? addressLine2;
   final String? postalCode;
+  final String? divisionalSecretariatName;
+  final String? gnDivisionName;
   final double? latitude;
   final double? longitude;
   final int? bedrooms;
@@ -61,8 +63,12 @@ class BuyerPropertyDetails {
   final List<Map<String, dynamic>> amenities;
   final Map<String, dynamic>? financials;
   final Map<String, dynamic>? legalDetails;
+  final Map<String, dynamic>? apartmentDetails;
   final DateTime? publishedAt;
   final DateTime? createdAt;
+  final String? agentUserId;
+  final String? agentName;
+  final String? agentPhoneNumber;
 
   const BuyerPropertyDetails({
     required this.propertyId,
@@ -85,6 +91,8 @@ class BuyerPropertyDetails {
     this.addressLine1,
     this.addressLine2,
     this.postalCode,
+    this.divisionalSecretariatName,
+    this.gnDivisionName,
     this.latitude,
     this.longitude,
     this.bedrooms,
@@ -99,14 +107,18 @@ class BuyerPropertyDetails {
     this.amenities = const [],
     this.financials,
     this.legalDetails,
+    this.apartmentDetails,
     this.publishedAt,
     this.createdAt,
+    this.agentUserId,
+    this.agentName,
+    this.agentPhoneNumber,
   });
 
   static const Map<int, String> _propertyTypeNames = {
     1: 'House',
-    2: 'Apartment',
-    3: 'Land',
+    2: 'Land',
+    3: 'Apartment',
     4: 'Commercial',
     5: 'Villa',
   };
@@ -128,6 +140,9 @@ class BuyerPropertyDetails {
     List<Map<String, dynamic>>? extraMedia,
     List<Map<String, dynamic>>? extraFeatures,
     List<Map<String, dynamic>>? extraAmenities,
+    Map<String, dynamic>? extraApartmentDetails,
+    Map<String, dynamic>? extraFinancials,
+    Map<String, dynamic>? extraLegalDetails,
     bool? isFav,
   }) {
     final rawData = json['data'] is Map<String, dynamic>
@@ -148,6 +163,12 @@ class BuyerPropertyDetails {
     final rawStatus = rawData['status'] ?? rawData['propertyStatus'] ?? 2;
     final statusId = (rawStatus is num) ? rawStatus.toInt() : 2;
 
+    // Parse Apartment Details if present
+    final rawApt = extraApartmentDetails ?? (rawData['apartmentDetails'] is Map ? rawData['apartmentDetails'] : null);
+    final rawBedrooms = rawData['bedrooms'] ?? rawApt?['bedrooms'];
+    final rawBathrooms = rawData['bathrooms'] ?? rawApt?['bathrooms'];
+    final rawSize = rawData['propertySize'] ?? rawApt?['floorAreaSqFt'] ?? rawData['floorArea'];
+
     // Parse media
     final mediaList = <BuyerPropertyMediaItem>[];
     if (extraMedia != null && extraMedia.isNotEmpty) {
@@ -155,39 +176,22 @@ class BuyerPropertyDetails {
         mediaList.add(BuyerPropertyMediaItem.fromJson(m));
       }
     } else if (rawData['media'] is List) {
-      for (final m in (rawData['media'] as List).whereType<Map>()) {
-        mediaList.add(BuyerPropertyMediaItem.fromJson(Map<String, dynamic>.from(m)));
+      for (final m in (rawData['media'] as List)) {
+        if (m is Map) {
+          mediaList.add(BuyerPropertyMediaItem.fromJson(Map<String, dynamic>.from(m)));
+        }
       }
     }
-
-    // Cover image fallback
-    if (mediaList.isEmpty &&
-        (rawData['imageUrl'] != null || rawData['coverImageUrl'] != null)) {
-      final singleUrl = (rawData['imageUrl'] ?? rawData['coverImageUrl']).toString();
-      if (singleUrl.isNotEmpty) {
-        mediaList.add(BuyerPropertyMediaItem(id: '0', url: singleUrl, isCover: true));
-      }
-    }
-
-    final rawBedrooms = rawData['bedrooms'] ?? rawData['beds'] ?? rawData['numberOfBedrooms'];
-    final rawBathrooms = rawData['bathrooms'] ?? rawData['baths'] ?? rawData['numberOfBathrooms'];
-    final rawSize = rawData['propertySize'] ?? rawData['floorArea'] ?? rawData['area'] ?? rawData['size'];
 
     return BuyerPropertyDetails(
       propertyId: (rawData['propertyId'] ?? rawData['id'] ?? '').toString(),
-      referenceNo: (rawData['referenceNo'] ?? rawData['refNo'] ?? '').toString(),
-      title: (rawData['title'] ?? rawData['propertyTitle'] ?? rawData['name'] ?? 'Untitled Property').toString(),
+      referenceNo: (rawData['referenceNo'] ?? '').toString(),
+      title: (rawData['title'] ?? 'Untitled Property').toString(),
       description: rawData['description']?.toString(),
       propertyTypeId: propTypeId,
-      propertyTypeName: (rawData['propertyTypeName'] ??
-              _propertyTypeNames[propTypeId] ??
-              'Property')
-          .toString(),
+      propertyTypeName: (rawData['propertyTypeName'] ?? _propertyTypeNames[propTypeId] ?? 'Property').toString(),
       listingTypeId: listingTypeId,
-      listingTypeName: (rawData['listingTypeName'] ??
-              _listingTypeNames[listingTypeId] ??
-              (listingTypeId == 2 ? 'For Rent' : 'For Sale'))
-          .toString(),
+      listingTypeName: (rawData['listingTypeName'] ?? _listingTypeNames[listingTypeId] ?? 'For Sale').toString(),
       askingPrice: priceVal,
       formattedPrice: _formatCurrency(priceVal),
       isNegotiable: rawData['isNegotiable'] == true,
@@ -200,6 +204,12 @@ class BuyerPropertyDetails {
       addressLine1: rawData['addressLine1']?.toString(),
       addressLine2: rawData['addressLine2']?.toString(),
       postalCode: rawData['postalCode']?.toString(),
+      divisionalSecretariatName: rawData['divisionalSecretariatName']?.toString() ??
+          rawData['divisionalSecretariat']?['name']?.toString() ??
+          rawData['dsDivision']?.toString(),
+      gnDivisionName: rawData['gramaNiladhariName']?.toString() ??
+          rawData['gramaNiladhariDivision']?['name']?.toString() ??
+          rawData['gnDivision']?.toString(),
       latitude: (rawData['latitude'] as num?)?.toDouble(),
       longitude: (rawData['longitude'] as num?)?.toDouble(),
       bedrooms: (rawBedrooms as num?)?.toInt(),
@@ -224,10 +234,14 @@ class BuyerPropertyDetails {
                   .map((e) => Map<String, dynamic>.from(e))
                   .toList()
               : const []),
-      financials: rawData['financials'] is Map ? Map<String, dynamic>.from(rawData['financials'] as Map) : null,
-      legalDetails: rawData['legalDetails'] is Map ? Map<String, dynamic>.from(rawData['legalDetails'] as Map) : null,
+      financials: extraFinancials ?? (rawData['financials'] is Map ? Map<String, dynamic>.from(rawData['financials'] as Map) : null),
+      legalDetails: extraLegalDetails ?? (rawData['legalDetails'] is Map ? Map<String, dynamic>.from(rawData['legalDetails'] as Map) : null),
+      apartmentDetails: extraApartmentDetails ?? (rawData['apartmentDetails'] is Map ? Map<String, dynamic>.from(rawData['apartmentDetails'] as Map) : null),
       publishedAt: rawData['publishedAt'] != null ? DateTime.tryParse(rawData['publishedAt'].toString()) : null,
       createdAt: rawData['createdAt'] != null ? DateTime.tryParse(rawData['createdAt'].toString()) : null,
+      agentUserId: rawData['agentUserId']?.toString(),
+      agentName: rawData['agentName']?.toString(),
+      agentPhoneNumber: rawData['agentPhoneNumber']?.toString(),
     );
   }
 
@@ -236,6 +250,9 @@ class BuyerPropertyDetails {
     List<BuyerPropertyMediaItem>? media,
     List<Map<String, dynamic>>? features,
     List<Map<String, dynamic>>? amenities,
+    String? agentUserId,
+    String? agentName,
+    String? agentPhoneNumber,
   }) {
     return BuyerPropertyDetails(
       propertyId: propertyId,
@@ -274,6 +291,9 @@ class BuyerPropertyDetails {
       legalDetails: legalDetails,
       publishedAt: publishedAt,
       createdAt: createdAt,
+      agentUserId: agentUserId ?? this.agentUserId,
+      agentName: agentName ?? this.agentName,
+      agentPhoneNumber: agentPhoneNumber ?? this.agentPhoneNumber,
     );
   }
 

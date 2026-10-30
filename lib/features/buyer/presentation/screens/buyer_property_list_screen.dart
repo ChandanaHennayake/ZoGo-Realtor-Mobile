@@ -44,13 +44,8 @@ class _BuyerPropertyListScreenState extends State<BuyerPropertyListScreen> {
   int? _selectedPropertyTypeId; // null: All, 1: House, 2: Apartment, 3: Land, 4: Commercial, 5: Villa
   int? _selectedListingTypeId; // null: All, 1: For Sale, 2: For Rent
 
-  static const List<Map<String, dynamic>> _propertyTypeOptions = [
+  List<Map<String, dynamic>> _propertyTypeOptions = [
     {'id': null, 'label': 'All Types'},
-    {'id': 1, 'label': 'House'},
-    {'id': 2, 'label': 'Apartment'},
-    {'id': 3, 'label': 'Land'},
-    {'id': 4, 'label': 'Commercial'},
-    {'id': 5, 'label': 'Villa'},
   ];
 
   @override
@@ -59,30 +54,40 @@ class _BuyerPropertyListScreenState extends State<BuyerPropertyListScreen> {
     if (widget.initialListingType != null) {
       _selectedListingTypeId = widget.initialListingType;
     }
-    if (widget.initialCategory != null) {
-      _applyInitialCategory(widget.initialCategory!);
-    }
     _scrollController.addListener(_onScroll);
+    _loadMasterFilterData();
     _loadProperties(refresh: true);
   }
 
+  Future<void> _loadMasterFilterData() async {
+    try {
+      final types = await _propertyService.getPropertyTypes();
+      if (!mounted) return;
+      if (types.isNotEmpty) {
+        setState(() {
+          _propertyTypeOptions = [
+            {'id': null, 'label': 'All Types'},
+            ...types.map((t) => {
+                  'id': (t['id'] as num?)?.toInt(),
+                  'label': t['name']?.toString() ?? 'Type #${t['id']}',
+                }),
+          ];
+          if (widget.initialCategory != null) {
+            _applyInitialCategory(widget.initialCategory!);
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
   void _applyInitialCategory(String category) {
-    switch (category.toLowerCase()) {
-      case 'house':
-        _selectedPropertyTypeId = 1;
-        break;
-      case 'apartment':
-        _selectedPropertyTypeId = 2;
-        break;
-      case 'land':
-        _selectedPropertyTypeId = 3;
-        break;
-      case 'commercial':
-        _selectedPropertyTypeId = 4;
-        break;
-      case 'villa':
-        _selectedPropertyTypeId = 5;
-        break;
+    final lower = category.toLowerCase().trim();
+    final match = _propertyTypeOptions.firstWhere(
+      (opt) => (opt['label']?.toString().toLowerCase().trim() ?? '') == lower,
+      orElse: () => <String, dynamic>{},
+    );
+    if (match.isNotEmpty && match['id'] != null) {
+      _selectedPropertyTypeId = match['id'] as int?;
     }
   }
 

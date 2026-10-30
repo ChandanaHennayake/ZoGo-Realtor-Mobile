@@ -3,15 +3,28 @@ import '../../data/services/buyer_property_interest_service.dart';
 import '../../data/services/buyer_property_interaction_service.dart';
 import '../../models/buyer_property_interaction.dart';
 import '../../models/property_interest.dart';
+import 'visit_request_contact_sheet.dart';
 
 class PropertyInterestSection extends StatefulWidget {
   final String propertyId;
+  final String? propertyTitle;
+  final String? agentName;
+  final String? agentPhoneNumber;
+  final String? agentUserId;
+  final int? districtId;
+  final String? districtName;
   final BuyerPropertyInterestService? interestService;
   final ValueChanged<PropertyInterest?>? onInterestChanged;
 
   const PropertyInterestSection({
     super.key,
     required this.propertyId,
+    this.propertyTitle,
+    this.agentName,
+    this.agentPhoneNumber,
+    this.agentUserId,
+    this.districtId,
+    this.districtName,
     this.interestService,
     this.onInterestChanged,
   });
@@ -115,6 +128,20 @@ class _PropertyInterestSectionState extends State<PropertyInterestSection> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+
+      // When buyer marks interest, ask them if they want to call or chat to arrange a visit!
+      if (status == PropertyInterest.statusInterested && mounted) {
+        await VisitRequestContactSheet.show(
+          context: context,
+          propertyId: widget.propertyId,
+          propertyTitle: widget.propertyTitle ?? 'Property Visit',
+          agentName: widget.agentName,
+          agentPhoneNumber: widget.agentPhoneNumber,
+          agentUserId: widget.agentUserId,
+          districtId: widget.districtId,
+          districtName: widget.districtName,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       // Revert on error
@@ -218,8 +245,12 @@ class _PropertyInterestSectionState extends State<PropertyInterestSection> {
             Row(
               children: [
                 _buildInterestButton(
-                  title: 'Interested',
-                  icon: Icons.thumb_up_rounded,
+                  title: selectedStatus == PropertyInterest.statusInterested
+                      ? 'Interest Submitted'
+                      : 'Interested',
+                  icon: selectedStatus == PropertyInterest.statusInterested
+                      ? Icons.check_circle_rounded
+                      : Icons.thumb_up_rounded,
                   status: PropertyInterest.statusInterested,
                   activeColor: const Color(0xFF10B981),
                   isSelected: selectedStatus == PropertyInterest.statusInterested,
@@ -294,7 +325,7 @@ class _PropertyInterestSectionState extends State<PropertyInterestSection> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: _isUpdating ? null : () => _handleSelectStatus(status),
+          onTap: (_isUpdating || isSelected) ? null : () => _handleSelectStatus(status),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),

@@ -169,6 +169,111 @@ class BuyerPropertyInteractionService {
     }
   }
 
+  Future<BuyerPropertyInteraction> requestDocuments(String propertyId) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/buyer/property-interactions/$propertyId/documents-request';
+
+      final response = await _dio.put(
+        url,
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode == 200) {
+        if (response.data is Map) {
+          final resData = response.data['data'] ?? response.data;
+          return BuyerPropertyInteraction.fromJson(Map<String, dynamic>.from(resData as Map));
+        }
+        return BuyerPropertyInteraction(
+          propertyId: propertyId,
+          currentStatus: BuyerPropertyInteraction.statusDocumentsRequested,
+          currentStatusName: 'Documents Requested',
+          updatedAt: DateTime.now(),
+        );
+      }
+
+      throw Exception(
+        _parseErrorMessage(response.data, response.statusCode, 'Failed to request documents'),
+      );
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(e.response?.data, e.response?.statusCode, 'Failed to request documents: ${e.message}'),
+      );
+    }
+  }
+
+  Future<BuyerPropertyInteraction> markSold(String propertyId, {String? buyerId}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/buyer/property-interactions/$propertyId/sold';
+
+      final response = await _dio.put(
+        url,
+        data: {'buyerId': buyerId},
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        final resData = response.data['data'] ?? response.data;
+        return BuyerPropertyInteraction.fromJson(Map<String, dynamic>.from(resData as Map));
+      }
+
+      throw Exception(_parseErrorMessage(response.data, response.statusCode, 'Failed to mark sold'));
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(e.response?.data, e.response?.statusCode, 'Failed to mark sold: ${e.message}'),
+      );
+    }
+  }
+
+  Future<BuyerPropertyInteraction> rejectInquiry(String propertyId, {String? buyerId, required String reason}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/buyer/property-interactions/$propertyId/reject';
+
+      final response = await _dio.put(
+        url,
+        data: {'buyerId': buyerId, 'reason': reason},
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        final resData = response.data['data'] ?? response.data;
+        return BuyerPropertyInteraction.fromJson(Map<String, dynamic>.from(resData as Map));
+      }
+
+      throw Exception(_parseErrorMessage(response.data, response.statusCode, 'Failed to reject inquiry'));
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(e.response?.data, e.response?.statusCode, 'Failed to reject inquiry: ${e.message}'),
+      );
+    }
+  }
+
+  Future<BuyerPropertyInteraction> cancelInquiry(String propertyId, {String? buyerId, String? reason}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/buyer/property-interactions/$propertyId/cancel';
+
+      final response = await _dio.put(
+        url,
+        data: {'buyerId': buyerId, 'reason': reason},
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        final resData = response.data['data'] ?? response.data;
+        return BuyerPropertyInteraction.fromJson(Map<String, dynamic>.from(resData as Map));
+      }
+
+      throw Exception(_parseErrorMessage(response.data, response.statusCode, 'Failed to cancel inquiry'));
+    } on DioException catch (e) {
+      throw Exception(
+        _parseErrorMessage(e.response?.data, e.response?.statusCode, 'Failed to cancel inquiry: ${e.message}'),
+      );
+    }
+  }
+
   void dispose() {
     _dio.close();
   }

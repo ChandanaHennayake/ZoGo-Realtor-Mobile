@@ -9,7 +9,10 @@ enum BuyerInteractionStage {
   offerSubmitted(6, 'Offer Submitted', Icons.local_offer_outlined, Color(0xFFEC4899)),
   offerAccepted(7, 'Offer Accepted', Icons.verified_rounded, Color(0xFF059669)),
   offerRejected(8, 'Offer Rejected', Icons.cancel_outlined, Color(0xFFEF4444)),
-  notInterested(9, 'Not Interested', Icons.thumb_down_outlined, Color(0xFF6B7280));
+  notInterested(9, 'Not Interested', Icons.thumb_down_outlined, Color(0xFF6B7280)),
+  sold(10, 'Sale Completed', Icons.verified_rounded, Color(0xFF10B981)),
+  cancelled(11, 'Inquiry Cancelled', Icons.cancel_outlined, Color(0xFF6B7280)),
+  rejected(12, 'Inquiry Rejected', Icons.block_rounded, Color(0xFFEF4444));
 
   final int value;
   final String label;
@@ -45,6 +48,9 @@ class BuyerPropertyInteraction {
   static const int statusOfferAccepted = 7;
   static const int statusOfferRejected = 8;
   static const int statusNotInterested = 9;
+  static const int statusSold = 10;
+  static const int statusCancelled = 11;
+  static const int statusRejected = 12;
 
   const BuyerPropertyInteraction({
     this.id,
@@ -76,6 +82,12 @@ class BuyerPropertyInteraction {
         return 'Offer Rejected';
       case statusNotInterested:
         return 'Not Interested';
+      case statusSold:
+        return 'Sale Completed';
+      case statusCancelled:
+        return 'Inquiry Cancelled';
+      case statusRejected:
+        return 'Inquiry Rejected';
       default:
         return 'Status #$status';
     }

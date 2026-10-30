@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/services/buyer_favorite_service.dart';
 import '../../data/services/buyer_property_interest_service.dart';
 import '../../data/services/buyer_property_service.dart';
@@ -8,6 +9,7 @@ import '../../models/property_interest.dart';
 import '../../../chat/presentation/screens/chat_screen.dart';
 import '../widgets/buyer_interaction_section.dart';
 import '../widgets/property_interest_section.dart';
+import '../widgets/visit_request_contact_sheet.dart';
 
 class BuyerPropertyDetailsScreen extends StatefulWidget {
   final String propertyId;
@@ -306,6 +308,11 @@ class _BuyerPropertyDetailsScreenState
 
                   const SizedBox(height: 16),
 
+                  if (p.apartmentDetails != null && p.apartmentDetails!.isNotEmpty) ...[
+                    _buildApartmentDetailsCard(p),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Location Card
                   _buildLocationCard(p),
 
@@ -326,11 +333,25 @@ class _BuyerPropertyDetailsScreenState
                     _buildAmenitiesCard(p),
                   ],
 
+                  if (p.financials != null) ...[
+                    const SizedBox(height: 16),
+                    _buildFinancialsCard(p),
+                  ],
+
+                  const SizedBox(height: 16),
+                  _buildLegalVerificationCard(p),
+
                   const SizedBox(height: 20),
 
                   // PHASE 3: Property Interest Section
                   PropertyInterestSection(
                     propertyId: p.propertyId,
+                    propertyTitle: p.title,
+                    agentName: p.agentName,
+                    agentPhoneNumber: p.agentPhoneNumber,
+                    agentUserId: p.agentUserId,
+                    districtId: p.districtId,
+                    districtName: p.districtName,
                     onInterestChanged: (interest) {
                       if (mounted) {
                         setState(() {
@@ -347,6 +368,12 @@ class _BuyerPropertyDetailsScreenState
                   BuyerInteractionSection(
                     key: _interactionKey,
                     propertyId: p.propertyId,
+                    propertyTitle: p.title,
+                    agentName: p.agentName,
+                    agentPhoneNumber: p.agentPhoneNumber,
+                    agentUserId: p.agentUserId,
+                    districtId: p.districtId,
+                    districtName: p.districtName,
                   ),
                 ],
               ),
@@ -358,6 +385,10 @@ class _BuyerPropertyDetailsScreenState
   }
 
   Widget _buildBottomChatBar(BuyerPropertyDetails p) {
+    final agentName = p.agentName ?? 'Assigned Realtor';
+    final agentPhone = p.agentPhoneNumber ?? '0770000002';
+    final districtName = p.districtName ?? 'District';
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
@@ -383,28 +414,61 @@ class _BuyerPropertyDetailsScreenState
                     ),
                     child: const Icon(Icons.support_agent_rounded, color: primaryCyan, size: 22),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Assigned Realtor Available',
-                          style: TextStyle(
+                          agentName,
+                          style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: darkText,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
-                          'Direct chat active for interested buyer',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                          agentPhone,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: primaryCyan,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'monospace',
+                          ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  // CALL BUTTON
+                  IconButton.filled(
+                    tooltip: 'Call Agent ($agentPhone)',
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.all(10),
+                    ),
+                    icon: const Icon(Icons.phone_rounded, size: 18),
+                    onPressed: () async {
+                      final cleaned = agentPhone.replaceAll(RegExp(r'[^\d+]'), '');
+                      final uri = Uri.parse('tel:$cleaned');
+                      try {
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri);
+                        } else {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      } catch (e) {
+                        debugPrint('Could not launch call: $e');
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  // CHAT BUTTON
                   ElevatedButton.icon(
                     onPressed: () {
                       Navigator.of(context).push(
@@ -412,8 +476,8 @@ class _BuyerPropertyDetailsScreenState
                           builder: (_) => ChatScreen(
                             propertyId: p.propertyId,
                             propertyTitle: p.title,
-                            recipientId: 'agent_${p.districtId}',
-                            recipientName: 'Assigned Realtor (${p.districtName})',
+                            recipientId: p.agentUserId ?? 'agent_${p.districtId}',
+                            recipientName: '$agentName ($districtName)',
                             recipientRole: 'agent',
                             currentUserRole: 'buyer',
                           ),
@@ -422,35 +486,54 @@ class _BuyerPropertyDetailsScreenState
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryCyan,
-                      foregroundColor: Colors.white,
+                      foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       elevation: 0,
                     ),
                     icon: const Icon(Icons.chat_rounded, size: 16),
                     label: const Text(
-                      'Chat with Agent',
+                      'Chat',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
               )
             : Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFF94A3B8)),
-                    SizedBox(width: 10),
-                    Expanded(
+                    const Icon(Icons.support_agent_rounded, size: 20, color: Color(0xFF64748B)),
+                    const SizedBox(width: 10),
+                    const Expanded(
                       child: Text(
-                        'Direct agent chat unlocks when you mark "Interested" above.',
+                        'Mark "Interested" or request visit to call/chat with agent.',
                         style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                       ),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: primaryCyan,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      ),
+                      onPressed: () {
+                        VisitRequestContactSheet.show(
+                          context: context,
+                          propertyId: p.propertyId,
+                          propertyTitle: p.title,
+                          agentName: p.agentName,
+                          agentPhoneNumber: p.agentPhoneNumber,
+                          agentUserId: p.agentUserId,
+                          districtId: p.districtId,
+                          districtName: p.districtName,
+                        );
+                      },
+                      child: const Text('Contact Agent', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                     ),
                   ],
                 ),
@@ -752,6 +835,9 @@ class _BuyerPropertyDetailsScreenState
   }
 
   Widget _buildLocationCard(BuyerPropertyDetails p) {
+    final ds = p.divisionalSecretariatName;
+    final gn = p.gnDivisionName;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -774,7 +860,7 @@ class _BuyerPropertyDetailsScreenState
               Icon(Icons.location_on_outlined, color: primaryCyan, size: 20),
               SizedBox(width: 8),
               Text(
-                'Location',
+                'Location & Administrative Details',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -783,24 +869,454 @@ class _BuyerPropertyDetailsScreenState
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             p.fullAddress,
             style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF374151),
               height: 1.4,
+              fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(height: 12),
+
+          // Administrative Hierarchy Box
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                _buildInfoRow(
+                  label: 'Province / District',
+                  value: '${p.provinceName ?? '-'} / ${p.districtName ?? '-'}',
+                ),
+                if ((ds != null && ds.isNotEmpty) || (gn != null && gn.isNotEmpty)) ...[
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'DS Division',
+                    value: ds ?? 'Not specified',
+                  ),
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'GN Division',
+                    value: gn ?? 'Not specified',
+                  ),
+                ],
+                if (p.city != null || p.postalCode != null) ...[
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'City / Postal Code',
+                    value: '${p.city ?? '-'} ${p.postalCode != null ? '(${p.postalCode})' : ''}',
+                  ),
+                ],
+              ],
+            ),
+          ),
+
           if (p.latitude != null && p.longitude != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Coordinates: ${p.latitude}, ${p.longitude}',
-              style: const TextStyle(fontSize: 12, color: secondaryGray),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.pin_drop_outlined, size: 15, color: secondaryGray),
+                const SizedBox(width: 6),
+                Text(
+                  'GPS Coordinates: ${p.latitude}, ${p.longitude}',
+                  style: const TextStyle(fontSize: 12, color: secondaryGray),
+                ),
+              ],
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildApartmentDetailsCard(BuyerPropertyDetails p) {
+    final apt = p.apartmentDetails ?? {};
+    if (apt.isEmpty) return const SizedBox.shrink();
+
+    final condoName = apt['condominiumName']?.toString() ?? 'Stand-alone / Complex';
+    final aptTypeName = apt['apartmentTypeName']?.toString() ?? 'Apartment';
+    final floorNumber = apt['floorNumber']?.toString() ?? '-';
+    final unitNumber = apt['unitNumber']?.toString() ?? '-';
+    final isCornerUnit = apt['isCornerUnit'] == true;
+    final floorArea = apt['floorAreaSqFt'];
+    final areaText = floorArea != null ? '${floorArea.toString()} Sq.Ft' : null;
+
+    final bedroomCount = (apt['bedroomCount'] as num?)?.toInt() ?? p.bedrooms ?? 0;
+    final masterBedroomCount = (apt['masterBedroomCount'] as num?)?.toInt() ?? 0;
+    final bathroomCount = (apt['bathroomCount'] as num?)?.toInt() ?? p.bathrooms ?? 0;
+    final attachedBathroomCount = (apt['attachedBathroomCount'] as num?)?.toInt() ?? 0;
+    final balconyCount = (apt['balconyCount'] as num?)?.toInt() ?? 0;
+
+    final viewTypeName = apt['viewTypeName']?.toString() ?? 'Standard View';
+    final furnishingTypeName = apt['furnishingTypeName']?.toString() ?? 'Unfurnished';
+
+    final List<String> utilitySpaces = [];
+    if (apt['hasMaidRoom'] == true) utilitySpaces.add("Maid's Room");
+    if (apt['hasMaidBathroom'] == true) utilitySpaces.add("Maid's Bathroom");
+    if (apt['hasLaundryArea'] == true) utilitySpaces.add('Laundry Area');
+    if (apt['hasStorageRoom'] == true) utilitySpaces.add('Storage Room');
+    if (apt['hasWalkInCloset'] == true) utilitySpaces.add('Walk-in Closet');
+    if (apt['hasDriversRoom'] == true) utilitySpaces.add("Driver's Quarters");
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.apartment_rounded, color: primaryCyan, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Apartment & Unit Specifications',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: darkText,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  aptTypeName,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6366F1),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Condominium complex banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_city_rounded, color: primaryCyan, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Condominium Complex',
+                        style: TextStyle(fontSize: 11, color: secondaryGray),
+                      ),
+                      Text(
+                        condoName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: darkText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Unit Specs Details
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                _buildInfoRow(
+                  label: 'Floor / Unit Number',
+                  value: 'Floor $floorNumber (Unit #$unitNumber)',
+                ),
+                if (areaText != null) ...[
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'Floor Area',
+                    value: areaText,
+                  ),
+                ],
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'View Type',
+                  value: viewTypeName,
+                ),
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'Furnishing Status',
+                  value: furnishingTypeName,
+                ),
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'Bedrooms',
+                  value: '$bedroomCount ($masterBedroomCount Master)',
+                ),
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'Bathrooms',
+                  value: '$bathroomCount ($attachedBathroomCount Attached)',
+                ),
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'Balconies',
+                  value: '$balconyCount',
+                ),
+                if (isCornerUnit) ...[
+                  const Divider(height: 16),
+                  _buildInfoRow(
+                    label: 'Unit Position',
+                    value: 'Corner Unit (Prime Exposure)',
+                    valueColor: const Color(0xFF6366F1),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          if (utilitySpaces.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'Additional Spaces & Utility',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: darkText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: utilitySpaces.map((space) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: primaryCyan.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: primaryCyan.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle_outline, size: 14, color: primaryCyan),
+                      const SizedBox(width: 6),
+                      Text(
+                        space,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: darkText,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialsCard(BuyerPropertyDetails p) {
+    final fin = p.financials;
+    if (fin == null) return const SizedBox.shrink();
+
+    final maintFee = fin['maintenanceFee'];
+    final sinkingFund = fin['sinkingFundAmount'];
+    final billsUpToDate = fin['billsUpToDate'] == true;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.payments_outlined, color: primaryCyan, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Financials & Maintenance',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: darkText,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                if (maintFee != null) ...[
+                  _buildInfoRow(
+                    label: 'Maintenance Fee',
+                    value: 'Rs. $maintFee / Month',
+                  ),
+                  const Divider(height: 16),
+                ],
+                if (sinkingFund != null) ...[
+                  _buildInfoRow(
+                    label: 'Sinking Fund',
+                    value: 'Rs. $sinkingFund',
+                  ),
+                  const Divider(height: 16),
+                ],
+                _buildInfoRow(
+                  label: 'Utility Bills',
+                  value: billsUpToDate ? 'Up to date' : 'Pending clarification',
+                  valueColor: billsUpToDate ? const Color(0xFF10B981) : Colors.orange.shade800,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegalVerificationCard(BuyerPropertyDetails p) {
+    final legal = p.legalDetails;
+    final isClear = legal != null ? legal['hasLegalIssues'] != true : true;
+    final isVerified = legal != null ? legal['legalVerified'] == true : false;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.verified_user_outlined, color: Color(0xFF10B981), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Title & Legal Verification',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: darkText,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                _buildInfoRow(
+                  label: 'Title Status',
+                  value: isClear ? 'Clear Title Disclosed' : 'Pending Disclosures',
+                  valueColor: isClear ? const Color(0xFF10B981) : Colors.orange.shade800,
+                ),
+                const Divider(height: 16),
+                _buildInfoRow(
+                  label: 'Legal Verification',
+                  value: isVerified ? 'Verified by ZoGo Realtor' : 'Under Realtor Review',
+                  valueColor: isVerified ? const Color(0xFF10B981) : secondaryGray,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: secondaryGray),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? darkText,
+          ),
+        ),
+      ],
     );
   }
 

@@ -27,6 +27,9 @@ class BuyerPropertyListItem {
   final bool isFavorite;
   final DateTime? publishedAt;
   final DateTime? createdAt;
+  final String? agentUserId;
+  final String? agentName;
+  final String? agentPhoneNumber;
 
   const BuyerPropertyListItem({
     required this.propertyId,
@@ -57,12 +60,15 @@ class BuyerPropertyListItem {
     this.isFavorite = false,
     this.publishedAt,
     this.createdAt,
+    this.agentUserId,
+    this.agentName,
+    this.agentPhoneNumber,
   });
 
   static const Map<int, String> _propertyTypeNames = {
     1: 'House',
-    2: 'Apartment',
-    3: 'Land',
+    2: 'Land',
+    3: 'Apartment',
     4: 'Commercial',
     5: 'Villa',
   };
@@ -82,6 +88,13 @@ class BuyerPropertyListItem {
     return _listingTypeNames[id] ?? (id == 2 ? 'For Rent' : 'For Sale');
   }
 
+  static String _formatCurrency(double amount) {
+    if (amount <= 0) return 'Price upon request';
+    final parts = amount.toStringAsFixed(0);
+    final reg = RegExp(r'\B(?=(\d{3})+(?!\d))');
+    return 'Rs. ${parts.replaceAll(reg, ',')}';
+  }
+
   factory BuyerPropertyListItem.fromJson(Map<String, dynamic> json) {
     final rawId = json['propertyId'] ?? json['id'] ?? '';
     final rawPrice = json['askingPrice'] ?? json['price'] ?? 0;
@@ -98,22 +111,14 @@ class BuyerPropertyListItem {
     final rawStatus = json['status'] ?? json['propertyStatus'] ?? 2;
     final statusId = (rawStatus is num) ? rawStatus.toInt() : 2;
 
-    // Handle image URL resolution
-    String? imgUrl;
-    if (json['imageUrl'] != null && json['imageUrl'].toString().isNotEmpty) {
-      imgUrl = json['imageUrl'].toString();
-    } else if (json['coverImageUrl'] != null && json['coverImageUrl'].toString().isNotEmpty) {
-      imgUrl = json['coverImageUrl'].toString();
-    } else if (json['coverImage'] != null && json['coverImage'].toString().isNotEmpty) {
-      imgUrl = json['coverImage'].toString();
-    } else if (json['media'] is List && (json['media'] as List).isNotEmpty) {
-      final list = json['media'] as List;
-      final cover = list.firstWhere(
-        (m) => m is Map && (m['isCover'] == true || m['IsCover'] == true),
-        orElse: () => list.first,
-      );
-      if (cover is Map) {
-        imgUrl = (cover['mediaUrl'] ?? cover['url'] ?? cover['filePath'])?.toString();
+    String? imgUrl = json['imageUrl']?.toString() ?? json['coverImageUrl']?.toString();
+    if (imgUrl == null && json['images'] is List && (json['images'] as List).isNotEmpty) {
+      imgUrl = (json['images'] as List).first.toString();
+    }
+    if (imgUrl == null && json['media'] is List && (json['media'] as List).isNotEmpty) {
+      final firstMedia = (json['media'] as List).first;
+      if (firstMedia is Map) {
+        imgUrl = (firstMedia['mediaUrl'] ?? firstMedia['url'] ?? firstMedia['filePath'])?.toString();
       }
     }
 
@@ -156,6 +161,9 @@ class BuyerPropertyListItem {
       isFavorite: json['isFavorite'] == true,
       publishedAt: json['publishedAt'] != null ? DateTime.tryParse(json['publishedAt'].toString()) : null,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+      agentUserId: json['agentUserId']?.toString(),
+      agentName: json['agentName']?.toString(),
+      agentPhoneNumber: json['agentPhoneNumber']?.toString(),
     );
   }
 
@@ -163,6 +171,9 @@ class BuyerPropertyListItem {
     bool? isFavorite,
     int? status,
     String? statusName,
+    String? agentUserId,
+    String? agentName,
+    String? agentPhoneNumber,
   }) {
     return BuyerPropertyListItem(
       propertyId: propertyId,
@@ -193,26 +204,18 @@ class BuyerPropertyListItem {
       isFavorite: isFavorite ?? this.isFavorite,
       publishedAt: publishedAt,
       createdAt: createdAt,
+      agentUserId: agentUserId ?? this.agentUserId,
+      agentName: agentName ?? this.agentName,
+      agentPhoneNumber: agentPhoneNumber ?? this.agentPhoneNumber,
     );
   }
 
-  static String _formatCurrency(double amount) {
-    if (amount <= 0) return 'Price upon request';
-    final parts = amount.toStringAsFixed(0);
-    final reg = RegExp(r'\B(?=(\d{3})+(?!\d))');
-    return 'Rs. ${parts.replaceAll(reg, ',')}';
+  String get locationSummary {
+    if (city != null && districtName != null) {
+      return '$city, $districtName';
+    }
+    return city ?? districtName ?? 'Sri Lanka';
   }
 
-  String get locationDisplay {
-    final parts = <String>[];
-    if (city != null && city!.trim().isNotEmpty) {
-      parts.add(city!.trim());
-    }
-    if (districtName != null && districtName!.trim().isNotEmpty && districtName != city) {
-      parts.add(districtName!.trim());
-    } else if (addressLine1 != null && addressLine1!.trim().isNotEmpty && parts.isEmpty) {
-      parts.add(addressLine1!.trim());
-    }
-    return parts.isEmpty ? 'Location not specified' : parts.join(', ');
-  }
+  String get locationDisplay => locationSummary;
 }
