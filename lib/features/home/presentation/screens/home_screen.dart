@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:zogo_realtor/core/storage/secure_storage_service.dart';
 import 'package:zogo_realtor/features/auth/presentation/screens/get_started_screen.dart';
-import 'package:zogo_realtor/features/seller/presentation/screens/SellerMyPropertiesScreen.dart';
 import 'package:zogo_realtor/features/agent/presentation/screens/agent_home_screen.dart';
 
-import '../widgets/featured_property_card.dart';
 import '../widgets/home_header.dart';
 import '../widgets/property_type_card.dart';
-import '../widgets/recommended_property_card.dart';
+import 'my_activities_screen.dart';
 
 import 'package:zogo_realtor/features/seller/presentation/screens/seller_activation_screen.dart';
 import 'package:zogo_realtor/features/buyer/data/services/buyer_favorite_service.dart';
+import 'package:zogo_realtor/features/buyer/data/services/buyer_property_service.dart';
 import 'package:zogo_realtor/features/buyer/models/buyer_property_list_item.dart';
 import 'package:zogo_realtor/features/buyer/presentation/screens/buyer_property_details_screen.dart';
-import 'package:zogo_realtor/features/buyer/presentation/screens/buyer_property_list_screen.dart';
 import 'package:zogo_realtor/features/buyer/presentation/widgets/buyer_property_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,22 +23,12 @@ class HomeScreen extends StatefulWidget {
   });
 
   /// Roles returned from the login API.
-  ///
-  /// Example:
-  /// ['BYR']
-  ///
-  /// or:
-  /// ['SEL', 'BYR']
   final List<String> roles;
 
   /// Calls POST /api/v1/seller/activate and returns true on success.
   final Future<bool> Function() onActivateSeller;
 
   /// Optional override for the "create listing" action.
-  ///
-  /// Leave null and SellerMyPropertiesScreen navigates on its own.
-  /// Do NOT pass a callback that uses a disposed screen's context
-  /// (e.g. LoginScreen after pushReplacement).
   final VoidCallback? onListProperty;
 
   @override
@@ -50,14 +38,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  /// Local, mutable copy of the roles.
-  ///
-  /// widget.roles is final and comes from the login response, so it can
-  /// never reflect an activation that happens during this session.
   late List<String> _roles;
 
   static const Color primaryCyan = Color(0xFF00C6D4);
   static const Color pinkAccent = Color(0xFFFF2D7A);
+  static const Color darkText = Color(0xFF1A1A1A);
+  static const Color secondaryGray = Color(0xFF6B7280);
 
   final List<String> _propertyTypes = [
     'Buy',
@@ -71,24 +57,67 @@ class _HomeScreenState extends State<HomeScreen> {
     Icons.sell_outlined,
   ];
 
+  // Services & Controllers
+  final BuyerPropertyService _propertyService = BuyerPropertyService();
+  final BuyerFavoriteService _favoriteService = BuyerFavoriteService();
+  final ScrollController _homeScrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+
+  // Properties Feed State
+  final List<BuyerPropertyListItem> _properties = [];
+  bool _isLoadingProperties = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  String? _propertiesError;
+  int _currentPage = 1;
+  static const int _pageSize = 20;
+
+  // Filters State
+  String _searchQuery = '';
+  int? _selectedPropertyTypeId; // null: All Types
+  int? _selectedListingTypeId; // null: All Listings, 1: For Sale, 2: For Rent
+
+  List<Map<String, dynamic>> _propertyTypeOptions = [
+    {'id': null, 'label': 'All Types'},
+  ];
+
   // ============================================================
-  // ROLES
+  // INIT & LIFECYCLE
   // ============================================================
 
   @override
   void initState() {
     super.initState();
     _roles = List<String>.from(widget.roles);
+    _homeScrollController.addListener(_onHomeScroll);
+    _loadMasterFilterData();
+    _loadProperties(refresh: true);
   }
 
   @override
   void didUpdateWidget(covariant HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // If the parent re-issues roles (e.g. after a token refresh),
-    // take the fresher list.
     if (widget.roles != oldWidget.roles) {
       _roles = List<String>.from(widget.roles);
+    }
+  }
+
+  @override
+  void dispose() {
+    _homeScrollController.dispose();
+    _searchController.dispose();
+    _propertyService.dispose();
+    _favoriteService.dispose();
+    super.dispose();
+  }
+
+  void _onHomeScroll() {
+    if (_homeScrollController.position.pixels >=
+            _homeScrollController.position.maxScrollExtent - 250 &&
+        !_isLoadingProperties &&
+        !_isLoadingMore &&
+        _hasMore) {
+      _loadProperties(refresh: false);
     }
   }
 
@@ -105,13 +134,112 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _addSellerRoleLocally() {
-    if (_hasSellerRole) {
-      return;
-    }
-
+    if (_hasSellerRole) return;
     setState(() {
       _roles = [..._roles, 'SEL'];
     });
+  }
+
+  // ============================================================
+  // DATA LOADING
+  // ============================================================
+
+  Future<void> _loadMasterFilterData() async {
+    try {
+      final types = await _propertyService.getPropertyTypes();
+      if (!mounted) return;
+      if (types.isNotEmpty) {
+        setState(() {
+          _propertyTypeOptions = [
+            {'id': null, 'label': 'All Types'},
+            ...types.map((t) => {
+                  'id': (t['id'] as num?)?.toInt(),
+                  'label': t['name']?.toString() ?? 'Type #${t['id']}',
+                }),
+          ];
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadProperties({bool refresh = false}) async {
+    if (refresh) {
+      setState(() {
+        _currentPage = 1;
+        _hasMore = true;
+        _isLoadingProperties = true;
+        _propertiesError = null;
+      });
+    } else {
+      if (!_hasMore || _isLoadingMore) return;
+      setState(() {
+        _isLoadingMore = true;
+      });
+    }
+
+    try {
+      final pageToLoad = refresh ? 1 : _currentPage + 1;
+      final newItems = await _propertyService.getBuyerProperties(
+        pageNumber: pageToLoad,
+        pageSize: _pageSize,
+        searchQuery: _searchQuery.trim().isNotEmpty ? _searchQuery.trim() : null,
+        propertyTypeId: _selectedPropertyTypeId,
+        listingTypeId: _selectedListingTypeId,
+        forceRefresh: refresh,
+      );
+
+      List<BuyerPropertyListItem> favoritesList = [];
+      try {
+        favoritesList = await _favoriteService.getFavorites();
+      } catch (_) {}
+      final favIds = favoritesList.map((f) => f.propertyId.toLowerCase()).toSet();
+
+      final mappedItems = newItems.map((item) {
+        final isFav = favIds.contains(item.propertyId.toLowerCase()) || item.isFavorite;
+        return item.copyWith(isFavorite: isFav);
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        if (refresh) {
+          _properties.clear();
+        }
+        _properties.addAll(mappedItems);
+        _currentPage = pageToLoad;
+        _hasMore = newItems.length >= _pageSize;
+        _isLoadingProperties = false;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _propertiesError = e.toString().replaceFirst('Exception: ', '');
+        _isLoadingProperties = false;
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  Future<bool> _handleFavoriteToggle(String propertyId, bool currentlyFavorite) async {
+    try {
+      if (currentlyFavorite) {
+        await _favoriteService.removeFavorite(propertyId);
+      } else {
+        await _favoriteService.addFavorite(propertyId);
+      }
+
+      setState(() {
+        final idx = _properties.indexWhere(
+          (p) => p.propertyId.toLowerCase() == propertyId.toLowerCase(),
+        );
+        if (idx != -1) {
+          _properties[idx] = _properties[idx].copyWith(isFavorite: !currentlyFavorite);
+        }
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   // ============================================================
@@ -126,92 +254,111 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FA),
-
       body: SafeArea(
         child: IndexedStack(
           index: _selectedIndex,
           children: [
             _buildHome(),
-            _buildSellerPropertiesTab(),
-            _buildSearchTab(),
+            MyActivitiesScreen(
+              hasSellerRole: _hasSellerRole,
+              onExploreProperties: () {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+              },
+              onActivateSeller: _handleSell,
+              onListProperty: widget.onListProperty,
+            ),
             _buildSavedTab(),
             _buildProfile(),
           ],
         ),
       ),
-
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
   // ============================================================
-  // HOME
+  // HOME TAB
   // ============================================================
 
   Widget _buildHome() {
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        const SliverToBoxAdapter(
-          child: HomeHeader(),
-        ),
-
-        SliverToBoxAdapter(
-          child: _buildPropertyActions(),
-        ),
-
-        SliverToBoxAdapter(
-          child: _buildSectionHeader(
-            'Featured Properties',
+    return RefreshIndicator(
+      color: primaryCyan,
+      onRefresh: () => _loadProperties(refresh: true),
+      child: CustomScrollView(
+        controller: _homeScrollController,
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          // Header with integrated Search bar
+          SliverToBoxAdapter(
+            child: HomeHeader(
+              searchController: _searchController,
+              onSearchChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                });
+                _loadProperties(refresh: true);
+              },
+              onSearchSubmitted: (_) => _loadProperties(refresh: true),
+              onClearSearch: () {
+                _searchController.clear();
+                setState(() {
+                  _searchQuery = '';
+                });
+                _loadProperties(refresh: true);
+              },
+            ),
           ),
-        ),
 
-        const SliverToBoxAdapter(
-          child: FeaturedPropertyCard(
-            imageUrl:
-                'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80',
-            price: 'Rs. 45,000,000',
-            title: 'Modern Villa in Colombo',
-            location: 'Colombo 07',
-            beds: '4 Beds',
-            baths: '3 Baths',
-            area: '2,800 sq.ft',
+          // Property Actions (Buy / Rent / Sell)
+          SliverToBoxAdapter(
+            child: _buildPropertyActions(),
           ),
-        ),
 
-        SliverToBoxAdapter(
-          child: _buildSectionHeader(
-            'Recommended for you',
+          // Horizontal Category & Listing Type Filter Chips
+          SliverToBoxAdapter(
+            child: _buildFilterChipsRow(),
           ),
-        ),
 
-        SliverToBoxAdapter(
-          child: _buildRecommendedProperties(),
-        ),
+          // Section Title
+          SliverToBoxAdapter(
+            child: _buildSectionHeader(
+              _searchQuery.isNotEmpty
+                  ? 'Search Results'
+                  : (_selectedListingTypeId == 1
+                      ? 'Properties For Sale'
+                      : (_selectedListingTypeId == 2 ? 'Properties For Rent' : 'Available Properties')),
+            ),
+          ),
 
-        const SliverToBoxAdapter(
-          child: SizedBox(height: 30),
-        ),
-      ],
+          // Property Listing Feed
+          _buildPropertiesSliver(),
+
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 30),
+          ),
+        ],
+      ),
     );
   }
 
   // ============================================================
-  // BUY / RENT / SELL
+  // PROPERTY ACTIONS (BUY / RENT / SELL)
   // ============================================================
 
   Widget _buildPropertyActions() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        8,
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
       child: Row(
         children: List.generate(
           _propertyTypes.length,
           (index) {
+            final isBuy = index == 0;
+            final isRent = index == 1;
+            final isSelected = (isBuy && _selectedListingTypeId == 1) ||
+                (isRent && _selectedListingTypeId == 2);
+
             return Expanded(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -220,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: PropertyTypeCard(
                   title: _propertyTypes[index],
                   icon: _propertyIcons[index],
-                  isSelected: index == 0,
+                  isSelected: isSelected,
                   onTap: () {
                     _handlePropertyAction(index);
                   },
@@ -235,65 +382,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handlePropertyAction(int index) {
     switch (index) {
-      case 0:
-        _handleBuy();
+      case 0: // Buy
+        setState(() {
+          if (_selectedListingTypeId == 1) {
+            _selectedListingTypeId = null; // Toggle off
+          } else {
+            _selectedListingTypeId = 1; // For Sale
+          }
+        });
+        _loadProperties(refresh: true);
         break;
 
-      case 1:
-        _handleRent();
+      case 1: // Rent
+        setState(() {
+          if (_selectedListingTypeId == 2) {
+            _selectedListingTypeId = null; // Toggle off
+          } else {
+            _selectedListingTypeId = 2; // For Rent
+          }
+        });
+        _loadProperties(refresh: true);
         break;
 
-      case 2:
+      case 2: // Sell
         _handleSell();
         break;
     }
   }
 
-  // ============================================================
-  // BUY
-  // ============================================================
-
-  void _handleBuy() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const BuyerPropertyListScreen(),
-      ),
-    );
-  }
-
-  // ============================================================
-  // RENT
-  // ============================================================
-
-  void _handleRent() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const BuyerPropertyListScreen(
-          initialListingType: 2,
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // SELL
-  // ============================================================
-
   Future<void> _handleSell() async {
-    // ----------------------------------------------------------
-    // ALREADY A SELLER -> SWITCH DIRECTLY TO MY PROPERTIES TAB
-    // ----------------------------------------------------------
-
     if (_hasSellerRole) {
-      _openMyProperties();
+      _openMyActivities();
       return;
     }
-
-    // ----------------------------------------------------------
-    // NOT A SELLER -> SHOW ACTIVATION SCREEN
-    // ----------------------------------------------------------
 
     final activated = await Navigator.push<bool>(
       context,
@@ -306,214 +427,326 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (!mounted) {
-      return;
-    }
-
-    if (activated != true) {
-      return;
-    }
+    if (!mounted) return;
+    if (activated != true) return;
 
     _addSellerRoleLocally();
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text(
-          'Seller account activated successfully.',
-        ),
+        content: Text('Seller account activated successfully.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
 
-    _openMyProperties();
+    _openMyActivities();
   }
 
-  void _openMyProperties() {
+  void _openMyActivities() {
     setState(() {
       _selectedIndex = 1;
     });
   }
 
   // ============================================================
-  // SECTION HEADER
+  // FILTER CHIPS ROW
   // ============================================================
 
-  Widget _buildSectionHeader(String title, {VoidCallback? onViewAll}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        22,
-        20,
-        12,
-      ),
-      child: Row(
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFF1A1A1A),
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-
-          const Spacer(),
-
-          GestureDetector(
-            onTap: onViewAll ??
-                () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const BuyerPropertyListScreen(),
-                    ),
-                  );
-                },
-            child: const Text(
-              'View All',
-              style: TextStyle(
-                color: pinkAccent,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // RECOMMENDED PROPERTIES
-  // ============================================================
-
-  Widget _buildRecommendedProperties() {
-    final properties = [
-      (
-        title: 'Beachfront Villa',
-        price: 'Rs. 75,000,000',
-        location: 'Galle',
-        image:
-            'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=500&q=80',
-      ),
-      (
-        title: 'Modern House',
-        price: 'Rs. 28,500,000',
-        location: 'Kandy',
-        image:
-            'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=500&q=80',
-      ),
-      (
-        title: 'Luxury Apartment',
-        price: 'Rs. 32,000,000',
-        location: 'Colombo',
-        image:
-            'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=500&q=80',
-      ),
-    ];
-
-    return SizedBox(
-      height: 205,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 20,
-        ),
+  Widget _buildFilterChipsRow() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: properties.length,
-        itemBuilder: (context, index) {
-          final property = properties[index];
-
-          return RecommendedPropertyCard(
-            imageUrl: property.image,
-            title: property.title,
-            price: property.price,
-            location: property.location,
-            onTap: () {},
-            onFavorite: () {},
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // TABS IMPLEMENTATION
-  // ============================================================
-
-  Widget _buildSellerPropertiesTab() {
-    if (_hasSellerRole) {
-      return SellerMyPropertiesScreen(
-        onListProperty: widget.onListProperty,
-        isEmbedded: true,
-      );
-    }
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: primaryCyan.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.storefront_rounded,
-                size: 42,
-                color: primaryCyan,
-              ),
+            // All Listings
+            _buildFilterChip(
+              label: 'All Listings',
+              isSelected: _selectedListingTypeId == null,
+              onSelected: () {
+                setState(() {
+                  _selectedListingTypeId = null;
+                });
+                _loadProperties(refresh: true);
+              },
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Seller Account Required',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
-              ),
+            const SizedBox(width: 8),
+            // For Sale
+            _buildFilterChip(
+              label: 'For Sale',
+              isSelected: _selectedListingTypeId == 1,
+              onSelected: () {
+                setState(() {
+                  _selectedListingTypeId = 1;
+                });
+                _loadProperties(refresh: true);
+              },
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Activate your seller account to list and manage your properties directly inside ZoGo Realtor.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.5,
-                color: Color(0xFF6B7280),
-              ),
+            const SizedBox(width: 8),
+            // For Rent
+            _buildFilterChip(
+              label: 'For Rent',
+              isSelected: _selectedListingTypeId == 2,
+              onSelected: () {
+                setState(() {
+                  _selectedListingTypeId = 2;
+                });
+                _loadProperties(refresh: true);
+              },
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _handleSell,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryCyan,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            const SizedBox(width: 12),
+            Container(height: 20, width: 1.5, color: Colors.grey.shade300),
+            const SizedBox(width: 12),
+
+            // Dynamic Property Types
+            ..._propertyTypeOptions.map((opt) {
+              final isSel = _selectedPropertyTypeId == opt['id'];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _buildFilterChip(
+                  label: opt['label'].toString(),
+                  isSelected: isSel,
+                  onSelected: () {
+                    setState(() {
+                      _selectedPropertyTypeId = opt['id'] as int?;
+                    });
+                    _loadProperties(refresh: true);
+                  },
                 ),
-              ),
-              icon: const Icon(Icons.verified_user_rounded),
-              label: const Text(
-                'Activate Seller Account',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
+              );
+            }),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSearchTab() {
-    return const BuyerPropertyListScreen(isEmbedded: true);
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onSelected,
+  }) {
+    return GestureDetector(
+      onTap: onSelected,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? primaryCyan : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? primaryCyan : Colors.grey.shade300,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: primaryCyan.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : darkText,
+          ),
+        ),
+      ),
+    );
   }
+
+  // ============================================================
+  // SECTION HEADER
+  // ============================================================
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: darkText,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const Spacer(),
+          if (_properties.isNotEmpty)
+            Text(
+              '${_properties.length} ${_properties.length == 1 ? 'property' : 'properties'}',
+              style: const TextStyle(
+                color: secondaryGray,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // PROPERTIES SLIVER
+  // ============================================================
+
+  Widget _buildPropertiesSliver() {
+    if (_isLoadingProperties && _properties.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Center(
+            child: CircularProgressIndicator(color: primaryCyan),
+          ),
+        ),
+      );
+    }
+
+    if (_propertiesError != null && _properties.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+          child: Center(
+            child: Column(
+              children: [
+                const Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent),
+                const SizedBox(height: 12),
+                const Text(
+                  'Failed to load properties',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _propertiesError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: secondaryGray, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => _loadProperties(refresh: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryCyan,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Try Again'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_properties.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+          child: Center(
+            child: Column(
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.home_work_outlined, size: 36, color: Colors.grey.shade400),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'No Properties Found',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: darkText),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Try modifying your search or clearing selected filters.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: secondaryGray),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                      _selectedListingTypeId = null;
+                      _selectedPropertyTypeId = null;
+                    });
+                    _loadProperties(refresh: true);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryCyan,
+                    side: const BorderSide(color: primaryCyan),
+                  ),
+                  child: const Text('Reset All Filters'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index == _properties.length) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: _isLoadingMore
+                      ? const CircularProgressIndicator(color: primaryCyan)
+                      : const SizedBox.shrink(),
+                ),
+              );
+            }
+
+            final property = _properties[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: BuyerPropertyCard(
+                property: property,
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BuyerPropertyDetailsScreen(
+                        propertyId: property.propertyId,
+                        initialItem: property,
+                      ),
+                    ),
+                  );
+                  _loadProperties(refresh: true);
+                },
+                onFavoriteToggle: _handleFavoriteToggle,
+              ),
+            );
+          },
+          childCount: _properties.length + (_hasMore ? 1 : 0),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // SAVED TAB
+  // ============================================================
 
   Widget _buildSavedTab() {
     return FutureBuilder<List<BuyerPropertyListItem>>(
@@ -570,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ElevatedButton(
                     onPressed: () {
                       setState(() {
-                        _selectedIndex = 2; // Switch to Properties tab
+                        _selectedIndex = 0; // Switch to Home
                       });
                     },
                     style: ElevatedButton.styleFrom(
@@ -629,6 +862,10 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
+
+  // ============================================================
+  // PROFILE TAB
+  // ============================================================
 
   Widget _buildProfile() {
     return FutureBuilder<Map<String, String>>(
@@ -713,10 +950,23 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               tileColor: Colors.white,
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BuyerPropertyListScreen()),
-                );
+                setState(() {
+                  _selectedIndex = 0; // Go to Home
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.local_activity_rounded, color: Color(0xFF6366F1)),
+              title: const Text('My Activities', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('View scheduled visits, formal offers & listings', style: TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              tileColor: Colors.white,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 1; // Go to My Activities
+                });
               },
             ),
             const SizedBox(height: 12),
@@ -729,22 +979,11 @@ class _HomeScreenState extends State<HomeScreen> {
               tileColor: Colors.white,
               onTap: () {
                 setState(() {
-                  _selectedIndex = 3;
+                  _selectedIndex = 2; // Go to Saved
                 });
               },
             ),
             const SizedBox(height: 12),
-            if (_hasSellerRole) ...[
-              ListTile(
-                leading: const Icon(Icons.apartment_rounded, color: primaryCyan),
-                title: const Text('My Listed Properties', style: TextStyle(fontWeight: FontWeight.w600)),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                tileColor: Colors.white,
-                onTap: _openMyProperties,
-              ),
-              const SizedBox(height: 12),
-            ],
             ListTile(
               leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
               title: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.redAccent)),
@@ -796,23 +1035,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBottomNavigationBar() {
     return NavigationBar(
       selectedIndex: _selectedIndex,
-
       onDestinationSelected: (index) {
         setState(() {
           _selectedIndex = index;
         });
       },
-
       backgroundColor: Colors.white,
-
       elevation: 8,
-
       indicatorColor: primaryCyan.withValues(
         alpha: 0.12,
       ),
-
       height: 72,
-
       destinations: const [
         NavigationDestination(
           icon: Icon(Icons.home_outlined),
@@ -821,15 +1054,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
 
         NavigationDestination(
-          icon: Icon(Icons.apartment_outlined),
-          selectedIcon: Icon(Icons.apartment_rounded),
-          label: 'My Properties',
-        ),
-
-        NavigationDestination(
-          icon: Icon(Icons.travel_explore_outlined),
-          selectedIcon: Icon(Icons.travel_explore_rounded),
-          label: 'Properties',
+          icon: Icon(Icons.local_activity_outlined),
+          selectedIcon: Icon(Icons.local_activity_rounded),
+          label: 'My Activities',
         ),
 
         NavigationDestination(

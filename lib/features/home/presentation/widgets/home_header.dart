@@ -2,7 +2,18 @@ import 'package:flutter/material.dart';
 import '../../../buyer/presentation/widgets/notifications_sheet.dart';
 
 class HomeHeader extends StatelessWidget {
-  const HomeHeader({super.key});
+  final TextEditingController? searchController;
+  final ValueChanged<String>? onSearchChanged;
+  final ValueChanged<String>? onSearchSubmitted;
+  final VoidCallback? onClearSearch;
+
+  const HomeHeader({
+    super.key,
+    this.searchController,
+    this.onSearchChanged,
+    this.onSearchSubmitted,
+    this.onClearSearch,
+  });
 
   static const Color primaryCyan = Color(0xFF00C6D4);
   static const Color accentPink = Color(0xFFFF2D7A);
@@ -88,21 +99,38 @@ class HomeHeader extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-            child: const TextField(
+            child: TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              onSubmitted: onSearchSubmitted,
               decoration: InputDecoration(
-                hintText: 'Search location, property, realtor...',
-                hintStyle: TextStyle(
+                hintText: 'Search location, property, reference...',
+                hintStyle: const TextStyle(
                   color: Color(0xFF9AA3AF),
                   fontSize: 13,
                 ),
-                prefixIcon: Icon(
+                prefixIcon: const Icon(
                   Icons.search_rounded,
-                  color: Color(0xFF9AA3AF),
+                  color: primaryCyan,
                 ),
+                suffixIcon: (searchController != null && searchController!.text.isNotEmpty)
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                        onPressed: onClearSearch,
+                      )
+                    : null,
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   vertical: 15,
+                  horizontal: 10,
                 ),
               ),
             ),
