@@ -24,6 +24,5 @@ class ApiConstants {
   static const String agentInterestedProperties = '/api/v1/agent/properties/interested';
   static const String agentPendingVisits = '/api/v1/agent/visits/pending';
   static const String agentPendingDocuments = '/api/v1/agent/documents/pending';
-  static String agentMarkVisited(String propertyId) =>
-      '/api/v1/agent/properties/$propertyId/visit';
+  static String agentMarkVisited(String propertyId) =>'/api/v1/agent/properties/$propertyId/visit';
 }

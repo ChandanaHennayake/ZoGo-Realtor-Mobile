@@ -80,6 +80,14 @@ class _LoginScreenState extends State<LoginScreen> {
     _loginViewModel.addListener(
       _onLoginStateChanged,
     );
+    _emailController.addListener(_onInputChanged);
+    _passwordController.addListener(_onInputChanged);
+  }
+
+  void _onInputChanged() {
+    if (_loginViewModel.errorMessage != null) {
+      _loginViewModel.clearError();
+    }
   }
 
   void _onLoginStateChanged() {

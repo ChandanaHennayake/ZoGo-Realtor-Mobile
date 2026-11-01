@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/cache/app_cache_service.dart';
+import '../../../../core/network/connectivity_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../models/buyer_property_details.dart';
 import '../../models/buyer_property_list_item.dart';
@@ -69,7 +71,16 @@ class BuyerPropertyService {
     String? searchQuery,
     int? propertyTypeId,
     int? listingTypeId,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = 'buyer_properties_p${pageNumber}_s${pageSize}_q${searchQuery ?? ""}_pt${propertyTypeId ?? ""}_lt${listingTypeId ?? ""}';
+    if (!forceRefresh && pageNumber == 1) {
+      final cached = AppCacheService.instance.get<List<BuyerPropertyListItem>>(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        return cached;
+      }
+    }
+
     try {
       final headers = await _authHeaders();
       final queryParams = <String, dynamic>{
@@ -124,6 +135,11 @@ class BuyerPropertyService {
               }
             }
           }
+
+          if (pageNumber == 1 && items.isNotEmpty) {
+            AppCacheService.instance.put(cacheKey, items, ttl: const Duration(minutes: 5));
+          }
+          ConnectivityService.instance.notifyOnline();
           return items;
         }
 
@@ -139,6 +155,16 @@ class BuyerPropertyService {
       );
     } on DioException catch (e) {
       debugPrint('GET BUYER PROPERTIES DIO ERROR: ${e.message}');
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.unknown) {
+        ConnectivityService.instance.notifyOffline();
+      }
+      final cached = AppCacheService.instance.get<List<BuyerPropertyListItem>>(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        debugPrint('[BuyerPropertyService] Returning cached properties due to network error');
+        return cached;
+      }
       throw Exception(
         _parseErrorMessage(
           e.response?.data,
@@ -156,7 +182,15 @@ class BuyerPropertyService {
   // GET PROPERTY DETAILS (GET /api/v1/buyer/properties/{propertyId})
   // ============================================================
 
-  Future<BuyerPropertyDetails> getBuyerPropertyDetails(String propertyId) async {
+  Future<BuyerPropertyDetails> getBuyerPropertyDetails(String propertyId, {bool forceRefresh = false}) async {
+    final cacheKey = 'buyer_property_details_$propertyId';
+    if (!forceRefresh) {
+      final cached = AppCacheService.instance.get<BuyerPropertyDetails>(cacheKey);
+      if (cached != null) {
+        return cached;
+      }
+    }
+
     try {
       final headers = await _authHeaders();
       final url = '/api/v1/buyer/properties/$propertyId';
@@ -179,50 +213,86 @@ class BuyerPropertyService {
       if (response.statusCode == 200 && response.data != null) {
         Map<String, dynamic> rawMap;
         if (response.data is Map<String, dynamic>) {
-          rawMap = response.data as Map<String, dynamic>;
-        } else if (response.data is Map) {
-          rawMap = Map<String, dynamic>.from(response.data as Map);
+          final d = response.data as Map<String, dynamic>;
+          rawMap = d['data'] is Map ? Map<String, dynamic>.from(d['data'] as Map) : d;
         } else {
-          throw Exception('Invalid property details response format');
+          rawMap = Map<String, dynamic>.from(response.data as Map);
         }
 
-        // Fetch media, features, amenities in parallel to ensure complete property view
+        // Fetch parallel details: Media, Features, Amenities, ApartmentDetails, Financials, Legal
         final subResults = await Future.wait([
-          _dio.get('/api/v1/properties/$propertyId/media', options: Options(headers: headers)).catchError((_) => Response(requestOptions: RequestOptions(), statusCode: 404)),
-          _dio.get('/api/v1/properties/$propertyId/features', options: Options(headers: headers)).catchError((_) => Response(requestOptions: RequestOptions(), statusCode: 404)),
-          _dio.get('/api/v1/properties/$propertyId/amenities', options: Options(headers: headers)).catchError((_) => Response(requestOptions: RequestOptions(), statusCode: 404)),
+          _dio.get('/api/v1/properties/$propertyId/media', options: Options(headers: headers)).catchError((e) => Response(requestOptions: RequestOptions(path: ''), statusCode: 404)),
+          _dio.get('/api/v1/properties/$propertyId/features', options: Options(headers: headers)).catchError((e) => Response(requestOptions: RequestOptions(path: ''), statusCode: 404)),
+          _dio.get('/api/v1/properties/$propertyId/amenities', options: Options(headers: headers)).catchError((e) => Response(requestOptions: RequestOptions(path: ''), statusCode: 404)),
+          _dio.get('/api/v1/properties/$propertyId/apartment-details', options: Options(headers: headers)).catchError((e) => Response(requestOptions: RequestOptions(path: ''), statusCode: 404)),
+          _dio.get('/api/v1/properties/$propertyId/financials', options: Options(headers: headers)).catchError((e) => Response(requestOptions: RequestOptions(path: ''), statusCode: 404)),
+          _dio.get('/api/v1/properties/$propertyId/legal-details', options: Options(headers: headers)).catchError((e) => Response(requestOptions: RequestOptions(path: ''), statusCode: 404)),
         ]);
 
         List<Map<String, dynamic>> mediaList = [];
-        if (subResults[0].statusCode == 200 && subResults[0].data is List) {
-          mediaList = (subResults[0].data as List)
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
+        if (subResults[0].statusCode == 200 && subResults[0].data != null) {
+          final d = subResults[0].data;
+          final list = d is Map && d['data'] is List ? d['data'] as List : (d is List ? d : []);
+          mediaList = list.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
         }
 
         List<Map<String, dynamic>> featuresList = [];
-        if (subResults[1].statusCode == 200 && subResults[1].data is List) {
-          featuresList = (subResults[1].data as List)
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
+        if (subResults[1].statusCode == 200 && subResults[1].data != null) {
+          final d = subResults[1].data;
+          final list = d is Map && d['data'] is List ? d['data'] as List : (d is List ? d : []);
+          featuresList = list.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
         }
 
         List<Map<String, dynamic>> amenitiesList = [];
-        if (subResults[2].statusCode == 200 && subResults[2].data is List) {
-          amenitiesList = (subResults[2].data as List)
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
+        if (subResults[2].statusCode == 200 && subResults[2].data != null) {
+          final d = subResults[2].data;
+          final list = d is Map && d['data'] is List ? d['data'] as List : (d is List ? d : []);
+          amenitiesList = list.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
         }
 
-        return BuyerPropertyDetails.fromJson(
+        Map<String, dynamic>? apartmentDetails;
+        if (subResults[3].statusCode == 200 && subResults[3].data != null) {
+          final d = subResults[3].data;
+          if (d is Map<String, dynamic>) {
+            apartmentDetails = d['data'] is Map ? Map<String, dynamic>.from(d['data']) : d;
+          } else if (d is Map) {
+            apartmentDetails = Map<String, dynamic>.from(d);
+          }
+        }
+
+        Map<String, dynamic>? financials;
+        if (subResults[4].statusCode == 200 && subResults[4].data != null) {
+          final d = subResults[4].data;
+          if (d is Map<String, dynamic>) {
+            financials = d['data'] is Map ? Map<String, dynamic>.from(d['data']) : d;
+          } else if (d is Map) {
+            financials = Map<String, dynamic>.from(d);
+          }
+        }
+
+        Map<String, dynamic>? legalDetails;
+        if (subResults[5].statusCode == 200 && subResults[5].data != null) {
+          final d = subResults[5].data;
+          if (d is Map<String, dynamic>) {
+            legalDetails = d['data'] is Map ? Map<String, dynamic>.from(d['data']) : d;
+          } else if (d is Map) {
+            legalDetails = Map<String, dynamic>.from(d);
+          }
+        }
+
+        final result = BuyerPropertyDetails.fromJson(
           rawMap,
           extraMedia: mediaList.isNotEmpty ? mediaList : null,
           extraFeatures: featuresList.isNotEmpty ? featuresList : null,
           extraAmenities: amenitiesList.isNotEmpty ? amenitiesList : null,
+          extraApartmentDetails: apartmentDetails,
+          extraFinancials: financials,
+          extraLegalDetails: legalDetails,
         );
+
+        AppCacheService.instance.put(cacheKey, result, ttl: AppCacheService.detailsTtl);
+        ConnectivityService.instance.notifyOnline();
+        return result;
       }
 
       throw Exception(
@@ -233,6 +303,15 @@ class BuyerPropertyService {
         ),
       );
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.unknown) {
+        ConnectivityService.instance.notifyOffline();
+      }
+      final cached = AppCacheService.instance.get<BuyerPropertyDetails>(cacheKey);
+      if (cached != null) {
+        return cached;
+      }
       throw Exception(
         _parseErrorMessage(
           e.response?.data,
@@ -242,6 +321,87 @@ class BuyerPropertyService {
       );
     } catch (e) {
       throw Exception(e.toString());
+    }
+  }
+
+  // ============================================================
+  // MASTER DATA ENDPOINTS
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> getPropertyTypes() async {
+    const cacheKey = 'master_property_types';
+    final cached = AppCacheService.instance.get<List<Map<String, dynamic>>>(cacheKey);
+    if (cached != null && cached.isNotEmpty) {
+      return cached;
+    }
+
+    try {
+      final headers = await _authHeaders();
+      final res = await _dio.get('/api/v1/common/property-types', options: Options(headers: headers));
+      if (res.statusCode == 200 && res.data != null) {
+        final list = res.data is Map && res.data['data'] is List
+            ? res.data['data'] as List
+            : (res.data is List ? res.data as List : []);
+        final result = list.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+        if (result.isNotEmpty) {
+          AppCacheService.instance.put(cacheKey, result, ttl: AppCacheService.masterDataTtl);
+          ConnectivityService.instance.notifyOnline();
+        }
+        return result;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getListingTypes() async {
+    const cacheKey = 'master_listing_types';
+    final cached = AppCacheService.instance.get<List<Map<String, dynamic>>>(cacheKey);
+    if (cached != null && cached.isNotEmpty) {
+      return cached;
+    }
+
+    try {
+      final headers = await _authHeaders();
+      final res = await _dio.get('/api/v1/common/listing-types', options: Options(headers: headers));
+      if (res.statusCode == 200 && res.data != null) {
+        final list = res.data is Map && res.data['data'] is List
+            ? res.data['data'] as List
+            : (res.data is List ? res.data as List : []);
+        final result = list.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+        if (result.isNotEmpty) {
+          AppCacheService.instance.put(cacheKey, result, ttl: AppCacheService.masterDataTtl);
+          ConnectivityService.instance.notifyOnline();
+        }
+        return result;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getPropertyAgent(String propertyId) async {
+    final cacheKey = 'property_agent_$propertyId';
+    final cached = AppCacheService.instance.get<Map<String, dynamic>>(cacheKey);
+    if (cached != null) return cached;
+
+    try {
+      final headers = await _authHeaders();
+      final url = '/api/v1/buyer/properties/$propertyId/agent';
+      final res = await _dio.get(url, options: Options(headers: headers));
+      if (res.statusCode == 200 && res.data != null) {
+        if (res.data is Map && res.data['data'] is Map) {
+          final result = Map<String, dynamic>.from(res.data['data'] as Map);
+          AppCacheService.instance.put(cacheKey, result, ttl: const Duration(minutes: 15));
+          ConnectivityService.instance.notifyOnline();
+          return result;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 

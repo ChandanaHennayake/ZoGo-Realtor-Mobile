@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/cache/app_cache_service.dart';
+import '../../../../core/network/connectivity_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../models/buyer_property_list_item.dart';
 import '../../models/favorite_status.dart';
@@ -68,6 +70,8 @@ class BuyerFavoriteService {
       debugPrint('ADD FAVORITE STATUS: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        AppCacheService.instance.invalidate('buyer_favorites');
+        ConnectivityService.instance.notifyOnline();
         return true;
       }
 
@@ -79,6 +83,10 @@ class BuyerFavoriteService {
         ),
       );
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        ConnectivityService.instance.notifyOffline();
+      }
       throw Exception(
         _parseErrorMessage(
           e.response?.data,
@@ -107,6 +115,8 @@ class BuyerFavoriteService {
       debugPrint('REMOVE FAVORITE STATUS: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 204) {
+        AppCacheService.instance.invalidate('buyer_favorites');
+        ConnectivityService.instance.notifyOnline();
         return true;
       }
 
@@ -118,6 +128,10 @@ class BuyerFavoriteService {
         ),
       );
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        ConnectivityService.instance.notifyOffline();
+      }
       throw Exception(
         _parseErrorMessage(
           e.response?.data,
@@ -132,7 +146,15 @@ class BuyerFavoriteService {
   // GET FAVORITES (GET /api/v1/buyer/favorites)
   // ============================================================
 
-  Future<List<BuyerPropertyListItem>> getFavorites() async {
+  Future<List<BuyerPropertyListItem>> getFavorites({bool forceRefresh = false}) async {
+    const cacheKey = 'buyer_favorites';
+    if (!forceRefresh) {
+      final cached = AppCacheService.instance.get<List<BuyerPropertyListItem>>(cacheKey);
+      if (cached != null) {
+        return cached;
+      }
+    }
+
     try {
       final headers = await _authHeaders();
       const url = '/api/v1/buyer/favorites';
@@ -155,12 +177,16 @@ class BuyerFavoriteService {
         }
 
         if (listData is List) {
-          return listData
+          final result = listData
               .whereType<Map>()
               .map((raw) => BuyerPropertyListItem.fromJson(
                     Map<String, dynamic>.from(raw),
                   ).copyWith(isFavorite: true))
               .toList();
+
+          AppCacheService.instance.put(cacheKey, result, ttl: const Duration(minutes: 3));
+          ConnectivityService.instance.notifyOnline();
+          return result;
         }
 
         return [];
@@ -174,6 +200,14 @@ class BuyerFavoriteService {
         ),
       );
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        ConnectivityService.instance.notifyOffline();
+      }
+      final cached = AppCacheService.instance.get<List<BuyerPropertyListItem>>(cacheKey);
+      if (cached != null) {
+        return cached;
+      }
       throw Exception(
         _parseErrorMessage(
           e.response?.data,
