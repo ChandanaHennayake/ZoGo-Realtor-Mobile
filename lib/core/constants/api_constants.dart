@@ -1,5 +1,5 @@
 class ApiConstants {
-  static const String baseUrl = 'http://172.20.10.5:5000';
+  static const String baseUrl = 'http://192.168.0.200:5000';
 
   static const String login = '/api/Auth/login';
   static const String register = '/api/Auth/register';
@@ -24,5 +24,7 @@ class ApiConstants {
   static const String agentInterestedProperties = '/api/v1/agent/properties/interested';
   static const String agentPendingVisits = '/api/v1/agent/visits/pending';
   static const String agentPendingDocuments = '/api/v1/agent/documents/pending';
-  static String agentMarkVisited(String propertyId) =>'/api/v1/agent/properties/$propertyId/visit';
+  static const String agentTerritoryProperties = '/api/v1/agent/territory/properties';
+  static const String agentVisits = '/api/v1/visits/agent';
+  static String agentMarkVisited(String propertyId) => '/api/v1/agent/properties/$propertyId/visit';
 }

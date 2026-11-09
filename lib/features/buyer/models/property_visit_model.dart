@@ -11,6 +11,9 @@ class PropertyVisitModel {
   final String timeSlot;
   final String? buyerNotes;
   final String? agentNotes;
+  final String? buyerId;
+  final String? buyerName;
+  final String? buyerPhone;
   final int status;
   final String statusName;
   final String? assignedAgentName;
@@ -34,6 +37,9 @@ class PropertyVisitModel {
     required this.timeSlot,
     this.buyerNotes,
     this.agentNotes,
+    this.buyerId,
+    this.buyerName,
+    this.buyerPhone,
     required this.status,
     required this.statusName,
     this.assignedAgentName,
@@ -108,6 +114,9 @@ class PropertyVisitModel {
       timeSlot: (json['timeSlot'] ?? json['TimeSlot'] ?? 'Morning (09:00 - 12:00)').toString(),
       buyerNotes: json['buyerNotes']?.toString(),
       agentNotes: json['agentNotes']?.toString(),
+      buyerId: (json['buyerId'] ?? json['BuyerId'])?.toString(),
+      buyerName: (json['buyerName'] ?? json['BuyerName'])?.toString(),
+      buyerPhone: (json['buyerPhone'] ?? json['BuyerPhone'])?.toString(),
       status: statusInt,
       statusName: (json['statusName'] ?? json['StatusName'] ?? resolveStatusName(statusInt)).toString(),
       assignedAgentName: json['assignedAgentName']?.toString(),
