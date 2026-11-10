@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../../buyer/presentation/widgets/notifications_sheet.dart';
+import 'user_profile_sheet.dart';
 
 class HomeHeader extends StatelessWidget {
   final TextEditingController? searchController;
   final ValueChanged<String>? onSearchChanged;
   final ValueChanged<String>? onSearchSubmitted;
   final VoidCallback? onClearSearch;
+  final List<String>? roles;
+  final VoidCallback? onProfileTap;
 
   const HomeHeader({
     super.key,
@@ -13,6 +16,8 @@ class HomeHeader extends StatelessWidget {
     this.onSearchChanged,
     this.onSearchSubmitted,
     this.onClearSearch,
+    this.roles,
+    this.onProfileTap,
   });
 
   static const Color primaryCyan = Color(0xFF00C6D4);
@@ -33,14 +38,29 @@ class HomeHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              IconButton(
-                onPressed: () {},
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(
-                  Icons.menu_rounded,
-                  color: Colors.white,
-                  size: 28,
+              GestureDetector(
+                onTap: () {
+                  if (onProfileTap != null) {
+                    onProfileTap!();
+                  } else {
+                    UserProfileSheet.show(context, roles: roles ?? []);
+                  }
+                },
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.2),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.person_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
                 ),
               ),
 
