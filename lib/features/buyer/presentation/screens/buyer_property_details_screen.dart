@@ -9,16 +9,27 @@ import '../../models/property_interest.dart';
 import '../../../chat/presentation/screens/chat_screen.dart';
 import '../widgets/buyer_interaction_section.dart';
 import '../widgets/property_interest_section.dart';
-import '../widgets/visit_request_contact_sheet.dart';
 
 class BuyerPropertyDetailsScreen extends StatefulWidget {
   final String propertyId;
   final BuyerPropertyListItem? initialItem;
+  final bool isAgentView;
+  final String? buyerName;
+  final String? buyerPhoneNumber;
+  final String? buyerUserId;
+  final String? sellerName;
+  final String? sellerPhoneNumber;
 
   const BuyerPropertyDetailsScreen({
     super.key,
     required this.propertyId,
     this.initialItem,
+    this.isAgentView = false,
+    this.buyerName,
+    this.buyerPhoneNumber,
+    this.buyerUserId,
+    this.sellerName,
+    this.sellerPhoneNumber,
   });
 
   @override
@@ -341,40 +352,44 @@ class _BuyerPropertyDetailsScreenState
                   const SizedBox(height: 16),
                   _buildLegalVerificationCard(p),
 
-                  const SizedBox(height: 20),
+                  if (widget.isAgentView) ...[
+                    const SizedBox(height: 20),
+                    _buildAgentBuyerOverviewCard(p),
+                  ] else ...[
+                    const SizedBox(height: 20),
+                    // PHASE 3: Property Interest Section
+                    PropertyInterestSection(
+                      propertyId: p.propertyId,
+                      propertyTitle: p.title,
+                      agentName: p.agentName,
+                      agentPhoneNumber: p.agentPhoneNumber,
+                      agentUserId: p.agentUserId,
+                      districtId: p.districtId,
+                      districtName: p.districtName,
+                      onInterestChanged: (interest) {
+                        if (mounted) {
+                          setState(() {
+                            _isInterested = interest?.status == PropertyInterest.statusInterested;
+                          });
+                          _interactionKey.currentState?.reload();
+                        }
+                      },
+                    ),
 
-                  // PHASE 3: Property Interest Section
-                  PropertyInterestSection(
-                    propertyId: p.propertyId,
-                    propertyTitle: p.title,
-                    agentName: p.agentName,
-                    agentPhoneNumber: p.agentPhoneNumber,
-                    agentUserId: p.agentUserId,
-                    districtId: p.districtId,
-                    districtName: p.districtName,
-                    onInterestChanged: (interest) {
-                      if (mounted) {
-                        setState(() {
-                          _isInterested = interest?.status == PropertyInterest.statusInterested;
-                        });
-                        _interactionKey.currentState?.reload();
-                      }
-                    },
-                  ),
+                    const SizedBox(height: 20),
 
-                  const SizedBox(height: 20),
-
-                  // PHASE 4: Buyer Property Interaction Section
-                  BuyerInteractionSection(
-                    key: _interactionKey,
-                    propertyId: p.propertyId,
-                    propertyTitle: p.title,
-                    agentName: p.agentName,
-                    agentPhoneNumber: p.agentPhoneNumber,
-                    agentUserId: p.agentUserId,
-                    districtId: p.districtId,
-                    districtName: p.districtName,
-                  ),
+                    // PHASE 4: Buyer Property Interaction Section
+                    BuyerInteractionSection(
+                      key: _interactionKey,
+                      propertyId: p.propertyId,
+                      propertyTitle: p.title,
+                      agentName: p.agentName,
+                      agentPhoneNumber: p.agentPhoneNumber,
+                      agentUserId: p.agentUserId,
+                      districtId: p.districtId,
+                      districtName: p.districtName,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -385,12 +400,157 @@ class _BuyerPropertyDetailsScreenState
   }
 
   Widget _buildBottomChatBar(BuyerPropertyDetails p) {
+    if (widget.isAgentView) {
+      final buyerName = (widget.buyerName != null && widget.buyerName!.trim().isNotEmpty)
+          ? widget.buyerName!.trim()
+          : 'Interested Buyer';
+      final buyerPhone = (widget.buyerPhoneNumber != null && widget.buyerPhoneNumber!.trim().isNotEmpty)
+          ? widget.buyerPhoneNumber!.trim()
+          : '077 000 0000';
+      final hasPhone = widget.buyerPhoneNumber != null && widget.buyerPhoneNumber!.trim().isNotEmpty;
+
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: const Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.person_pin_rounded, color: Color(0xFF3B82F6), size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            buyerName,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: darkText,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'BUYER',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF3B82F6),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      hasPhone ? buyerPhone : 'Phone not provided',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: hasPhone ? const Color(0xFF10B981) : secondaryGray,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // CALL BUYER BUTTON
+              IconButton.filled(
+                tooltip: 'Call Buyer ($buyerPhone)',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.all(10),
+                ),
+                icon: const Icon(Icons.phone_rounded, size: 18),
+                onPressed: () async {
+                  final cleaned = buyerPhone.replaceAll(RegExp(r'[^\d+]'), '');
+                  final uri = Uri.parse('tel:$cleaned');
+                  try {
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    } else {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  } catch (e) {
+                    debugPrint('Could not launch call: $e');
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              // CHAT WITH BUYER BUTTON
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                        propertyId: p.propertyId,
+                        propertyTitle: p.title,
+                        recipientId: widget.buyerUserId ?? 'buyer_${p.propertyId}',
+                        recipientName: buyerName,
+                        recipientRole: 'buyer',
+                        currentUserRole: 'agent',
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryCyan,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.chat_rounded, size: 16),
+                label: const Text(
+                  'Chat Buyer',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final agentName = p.agentName ?? 'Assigned Realtor';
     final agentPhone = p.agentPhoneNumber ?? '0770000002';
     final districtName = p.districtName ?? 'District';
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
         color: Colors.white,
         border: const Border(top: BorderSide(color: Color(0xFFE2E8F0))),
@@ -403,24 +563,27 @@ class _BuyerPropertyDetailsScreenState
         ],
       ),
       child: SafeArea(
-        child: _isInterested
-            ? Row(
+        top: false,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: primaryCyan.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.support_agent_rounded, color: primaryCyan, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: primaryCyan.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.support_agent_rounded, color: primaryCyan, size: 22),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
                           agentName,
                           style: const TextStyle(
                             fontSize: 13,
@@ -430,114 +593,96 @@ class _BuyerPropertyDetailsScreenState
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 1),
-                        Text(
-                          agentPhone,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: primaryCyan,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'monospace',
+                      ),
+                      if (_isInterested) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Interested',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF10B981),
+                            ),
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  // CALL BUTTON
-                  IconButton.filled(
-                    tooltip: 'Call Agent ($agentPhone)',
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.all(10),
-                    ),
-                    icon: const Icon(Icons.phone_rounded, size: 18),
-                    onPressed: () async {
-                      final cleaned = agentPhone.replaceAll(RegExp(r'[^\d+]'), '');
-                      final uri = Uri.parse('tel:$cleaned');
-                      try {
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        } else {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
-                      } catch (e) {
-                        debugPrint('Could not launch call: $e');
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  // CHAT BUTTON
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            propertyId: p.propertyId,
-                            propertyTitle: p.title,
-                            recipientId: p.agentUserId ?? 'agent_${p.districtId}',
-                            recipientName: '$agentName ($districtName)',
-                            recipientRole: 'agent',
-                            currentUserRole: 'buyer',
-                          ),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryCyan,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      elevation: 0,
-                    ),
-                    icon: const Icon(Icons.chat_rounded, size: 16),
-                    label: const Text(
-                      'Chat',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  const SizedBox(height: 1),
+                  Text(
+                    agentPhone,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: primaryCyan,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'monospace',
                     ),
                   ),
                 ],
-              )
-            : Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.support_agent_rounded, size: 20, color: Color(0xFF64748B)),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        'Mark "Interested" or request visit to call/chat with agent.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: primaryCyan,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      ),
-                      onPressed: () {
-                        VisitRequestContactSheet.show(
-                          context: context,
-                          propertyId: p.propertyId,
-                          propertyTitle: p.title,
-                          agentName: p.agentName,
-                          agentPhoneNumber: p.agentPhoneNumber,
-                          agentUserId: p.agentUserId,
-                          districtId: p.districtId,
-                          districtName: p.districtName,
-                        );
-                      },
-                      child: const Text('Contact Agent', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    ),
-                  ],
-                ),
               ),
+            ),
+            const SizedBox(width: 8),
+            // DIRECT CALL BUTTON (Always accessible without requiring prior interest)
+            IconButton.filled(
+              tooltip: 'Direct Call Agent ($agentPhone)',
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(10),
+              ),
+              icon: const Icon(Icons.phone_rounded, size: 18),
+              onPressed: () async {
+                final cleaned = agentPhone.replaceAll(RegExp(r'[^\d+]'), '');
+                final uri = Uri.parse('tel:$cleaned');
+                try {
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri);
+                  } else {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                } catch (e) {
+                  debugPrint('Could not launch call: $e');
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+            // CHAT BUTTON
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ChatScreen(
+                      propertyId: p.propertyId,
+                      propertyTitle: p.title,
+                      recipientId: p.agentUserId ?? 'agent_${p.districtId}',
+                      recipientName: '$agentName ($districtName)',
+                      recipientRole: 'agent',
+                      currentUserRole: 'buyer',
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryCyan,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.chat_rounded, size: 16),
+              label: const Text(
+                'Chat',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1481,6 +1626,261 @@ class _BuyerPropertyDetailsScreenState
                 ),
               );
             }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildAgentBuyerOverviewCard(BuyerPropertyDetails p) {
+    final buyerName = (widget.buyerName != null && widget.buyerName!.trim().isNotEmpty)
+        ? widget.buyerName!.trim()
+        : 'Interested Buyer';
+    final buyerPhone = (widget.buyerPhoneNumber != null && widget.buyerPhoneNumber!.trim().isNotEmpty)
+        ? widget.buyerPhoneNumber!.trim()
+        : 'Phone not provided';
+    final sellerName = (widget.sellerName != null && widget.sellerName!.trim().isNotEmpty)
+        ? widget.sellerName!.trim()
+        : 'Property Seller';
+    final sellerPhone = (widget.sellerPhoneNumber != null && widget.sellerPhoneNumber!.trim().isNotEmpty)
+        ? widget.sellerPhoneNumber!.trim()
+        : 'Phone not provided';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0D14),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF1E293B), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+                    ),
+                    child: const Icon(Icons.support_agent_rounded, color: Color(0xFF3B82F6), size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Assigned Realtor Console',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Direct Contact & Negotiation Hub',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                ),
+                child: const Text(
+                  'ACTIVE INQUIRY',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF10B981)),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFF1E293B)),
+          const SizedBox(height: 12),
+
+          // Interested Buyer Contact Card
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B26),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'INTERESTED BUYER',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF3B82F6), letterSpacing: 0.5),
+                    ),
+                    const Row(
+                      children: [
+                        Icon(Icons.verified_rounded, size: 12, color: Color(0xFF10B981)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Verified Buyer',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+                      child: Text(
+                        buyerName.isNotEmpty ? buyerName[0].toUpperCase() : 'B',
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF3B82F6), fontSize: 16),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            buyerName,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.phone_rounded, size: 12, color: Color(0xFF10B981)),
+                              const SizedBox(width: 4),
+                              Text(
+                                buyerPhone,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF10B981), fontFamily: 'monospace'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Action Buttons for Buyer
+                    IconButton.filled(
+                      tooltip: 'Call Buyer',
+                      style: IconButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+                      icon: const Icon(Icons.phone_rounded, size: 18),
+                      onPressed: () async {
+                        final cleaned = buyerPhone.replaceAll(RegExp(r'[^\d+]'), '');
+                        final uri = Uri.parse('tel:$cleaned');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton.filled(
+                      tooltip: 'Chat with Buyer',
+                      style: IconButton.styleFrom(backgroundColor: primaryCyan, foregroundColor: Colors.white),
+                      icon: const Icon(Icons.chat_rounded, size: 18),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(
+                              propertyId: p.propertyId,
+                              propertyTitle: p.title,
+                              recipientId: widget.buyerUserId ?? 'buyer_${p.propertyId}',
+                              recipientName: buyerName,
+                              recipientRole: 'buyer',
+                              currentUserRole: 'agent',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Property Seller Details Card
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B26),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF1E293B)),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  child: const Icon(Icons.storefront_rounded, size: 18, color: Color(0xFF10B981)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'LISTING SELLER',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 0.5),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        sellerName,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        sellerPhone,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontFamily: 'monospace'),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton.outlined(
+                  tooltip: 'Call Seller',
+                  style: IconButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF1E293B)),
+                    foregroundColor: const Color(0xFF10B981),
+                  ),
+                  icon: const Icon(Icons.phone_outlined, size: 18),
+                  onPressed: () async {
+                    final cleaned = sellerPhone.replaceAll(RegExp(r'[^\d+]'), '');
+                    final uri = Uri.parse('tel:$cleaned');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),

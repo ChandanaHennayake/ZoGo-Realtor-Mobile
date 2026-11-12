@@ -254,25 +254,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FA),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: [
-            _buildHome(),
-            MyActivitiesScreen(
-              hasSellerRole: _hasSellerRole,
-              onExploreProperties: () {
-                setState(() {
-                  _selectedIndex = 0;
-                });
-              },
-              onActivateSeller: _handleSell,
-              onListProperty: widget.onListProperty,
-            ),
-            _buildSavedTab(),
-            _buildProfile(),
-          ],
-        ),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          SafeArea(bottom: false, child: _buildHome()),
+          MyActivitiesScreen(
+            hasSellerRole: _hasSellerRole,
+            onExploreProperties: () {
+              setState(() {
+                _selectedIndex = 0;
+              });
+            },
+            onActivateSeller: _handleSell,
+            onListProperty: widget.onListProperty,
+          ),
+        ],
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
@@ -293,6 +289,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Header with integrated Search bar
           SliverToBoxAdapter(
             child: HomeHeader(
+              roles: _roles,
               searchController: _searchController,
               onSearchChanged: (val) {
                 setState(() {
@@ -748,7 +745,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // SAVED TAB
   // ============================================================
 
-  Widget _buildSavedTab() {
+  Widget buildSavedTab() {
     return FutureBuilder<List<BuyerPropertyListItem>>(
       future: BuyerFavoriteService().getFavorites(),
       builder: (context, snapshot) {
@@ -867,7 +864,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // PROFILE TAB
   // ============================================================
 
-  Widget _buildProfile() {
+  Widget buildProfile() {
     return FutureBuilder<Map<String, String>>(
       future: SecureStorageService().getUserProfile(),
       builder: (context, snapshot) {
@@ -1052,23 +1049,10 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedIcon: Icon(Icons.home_rounded),
           label: 'Home',
         ),
-
         NavigationDestination(
           icon: Icon(Icons.local_activity_outlined),
           selectedIcon: Icon(Icons.local_activity_rounded),
-          label: 'My Activities',
-        ),
-
-        NavigationDestination(
-          icon: Icon(Icons.favorite_border_rounded),
-          selectedIcon: Icon(Icons.favorite_rounded),
-          label: 'Saved',
-        ),
-
-        NavigationDestination(
-          icon: Icon(Icons.person_outline_rounded),
-          selectedIcon: Icon(Icons.person_rounded),
-          label: 'Profile',
+          label: 'Activity',
         ),
       ],
     );

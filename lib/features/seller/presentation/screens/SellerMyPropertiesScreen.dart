@@ -851,7 +851,7 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FA),
-      appBar: AppBar(
+      appBar: widget.isEmbedded ? null : AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: !widget.isEmbedded,
@@ -1368,7 +1368,7 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                   children: [
                     // Dynamic Status Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusVisuals.bg,
                         borderRadius: BorderRadius.circular(8),
@@ -1381,14 +1381,14 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                         children: [
                           Icon(
                             statusVisuals.icon,
-                            size: 13,
+                            size: 12,
                             color: statusVisuals.text,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 3),
                           Text(
                             statusName,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w700,
                               color: statusVisuals.text,
                             ),
@@ -1397,21 +1397,25 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                       ),
                     ),
 
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
 
                     // Property Type Tag
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: primaryCyan.withValues(alpha: 0.09),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        typeName,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: primaryCyan,
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: primaryCyan.withValues(alpha: 0.09),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          typeName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: primaryCyan,
+                          ),
                         ),
                       ),
                     ),
@@ -1420,19 +1424,23 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
 
                     // Reference Number
                     if (refNo.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Text(
-                          '#$refNo',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade700,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Text(
+                            '#',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade700,
+                            ),
                           ),
                         ),
                       ),
@@ -1841,4 +1849,4 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
       ),
     );
   }
-}
+}

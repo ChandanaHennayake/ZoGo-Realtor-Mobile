@@ -139,38 +139,48 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
           unselectedLabelColor: secondaryGray,
           indicatorColor: primaryCyan,
           indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
           tabs: [
             Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.calendar_month_rounded, size: 18),
-                  const SizedBox(width: 6),
-                  Text('Visits (${_visits.length})'),
-                ],
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.calendar_month_rounded, size: 17),
+                    const SizedBox(width: 5),
+                    Text('Visits ()'),
+                  ],
+                ),
               ),
             ),
             Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.local_offer_rounded, size: 18),
-                  const SizedBox(width: 6),
-                  Text('Offers (${_offers.length})'),
-                ],
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.local_offer_rounded, size: 17),
+                    const SizedBox(width: 5),
+                    Text('Offers ()'),
+                  ],
+                ),
               ),
             ),
             if (widget.hasSellerRole)
               const Tab(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.apartment_rounded, size: 18),
-                    SizedBox(width: 6),
-                    Text('My Listings'),
-                  ],
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.apartment_rounded, size: 17),
+                      SizedBox(width: 5),
+                      Text('My Listings'),
+                    ],
+                  ),
                 ),
               ),
           ],

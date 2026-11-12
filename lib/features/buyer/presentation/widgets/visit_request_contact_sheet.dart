@@ -224,7 +224,10 @@ class _VisitRequestContactSheetState extends State<VisitRequestContactSheet> {
         top: 20,
         left: 20,
         right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 28,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 
+            (MediaQuery.of(context).padding.bottom > 0 
+                ? MediaQuery.of(context).padding.bottom + 14 
+                : 28),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
