@@ -63,4 +63,6 @@ class ApiConstants {
   static String adminPropertyApprove(String id) => '/api/v1/admin/properties/$id/approve';
   static String adminPropertyRequestChanges(String id) => '/api/v1/admin/properties/$id/request-changes';
   static String adminPropertyReject(String id) => '/api/v1/admin/properties/$id/reject';
+  static const String adminTransactions = '/api/v1/admin/transactions';
+  static const String adminCommissions = '/api/v1/admin/transactions/commissions';
 }
