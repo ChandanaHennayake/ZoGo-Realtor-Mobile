@@ -245,33 +245,44 @@ class _BuyerPropertyCardState extends State<BuyerPropertyCard> {
                     // Price Row
                     Row(
                       children: [
-                        Text(
-                          item.formattedPrice,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A1A),
+                        Flexible(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  item.formattedPrice,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
+                                ),
+                              ),
+                              if (item.isNegotiable) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: primaryCyan.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'Negotiable',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: primaryCyan,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                        if (item.isNegotiable) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: primaryCyan.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'Negotiable',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: primaryCyan,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         if (item.referenceNo.isNotEmpty)
                           Text(
                             '#${item.referenceNo}',
@@ -331,26 +342,37 @@ class _BuyerPropertyCardState extends State<BuyerPropertyCard> {
                     // Specs Row: Bedrooms, Bathrooms, Size
                     Row(
                       children: [
-                        if (item.bedrooms != null && item.bedrooms! > 0) ...[
-                          _buildSpecBadge(
-                            icon: Icons.king_bed_outlined,
-                            text: '${item.bedrooms} Beds',
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (item.bedrooms != null && item.bedrooms! > 0) ...[
+                                  _buildSpecBadge(
+                                    icon: Icons.king_bed_outlined,
+                                    text: '${item.bedrooms} Beds',
+                                  ),
+                                  const SizedBox(width: 12),
+                                ],
+                                if (item.bathrooms != null && item.bathrooms! > 0) ...[
+                                  _buildSpecBadge(
+                                    icon: Icons.bathtub_outlined,
+                                    text: '${item.bathrooms} Baths',
+                                  ),
+                                  const SizedBox(width: 12),
+                                ],
+                                if (item.propertySize != null && item.propertySize! > 0)
+                                  _buildSpecBadge(
+                                    icon: Icons.square_foot_rounded,
+                                    text: '${item.propertySize!.toStringAsFixed(0)} ${item.sizeUnit ?? 'sq.ft'}',
+                                  ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 14),
-                        ],
-                        if (item.bathrooms != null && item.bathrooms! > 0) ...[
-                          _buildSpecBadge(
-                            icon: Icons.bathtub_outlined,
-                            text: '${item.bathrooms} Baths',
-                          ),
-                          const SizedBox(width: 14),
-                        ],
-                        if (item.propertySize != null && item.propertySize! > 0)
-                          _buildSpecBadge(
-                            icon: Icons.square_foot_rounded,
-                            text: '${item.propertySize!.toStringAsFixed(0)} ${item.sizeUnit ?? 'sq.ft'}',
-                          ),
-                        const Spacer(),
+                        ),
+                        const SizedBox(width: 8),
                         const Icon(
                           Icons.arrow_forward_ios_rounded,
                           size: 13,
