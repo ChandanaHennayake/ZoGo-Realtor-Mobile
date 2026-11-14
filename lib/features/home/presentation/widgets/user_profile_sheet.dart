@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../auth/presentation/screens/get_started_screen.dart';
 import '../../../seller/presentation/screens/seller_activation_screen.dart';
+import '../../../admin/presentation/screens/admin_property_queue_screen.dart';
 
 class UserProfileSheet extends StatelessWidget {
   final List<String> roles;
@@ -358,6 +359,52 @@ class UserProfileSheet extends StatelessWidget {
                                 child: const Text('Activate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                               ),
                             ],
+                          ),
+                        ),
+
+                      // Admin / Agent Review Queue Section
+                      if (isAdmin || isAgent)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFF0F172A),
+                                primaryCyan.withValues(alpha: 0.12),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: primaryCyan.withValues(alpha: 0.4)),
+                          ),
+                          child: ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: primaryCyan.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.admin_panel_settings_rounded, color: primaryCyan, size: 22),
+                            ),
+                            title: const Text(
+                              'Listing Approval Queue',
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: const Text(
+                              'Review, approve & publish seller listings',
+                              style: TextStyle(color: Colors.white60, fontSize: 11),
+                            ),
+                            trailing: const Icon(Icons.arrow_forward_ios_rounded, color: primaryCyan, size: 14),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AdminPropertyQueueScreen(),
+                                ),
+                              );
+                            },
                           ),
                         ),
 

@@ -13,6 +13,7 @@ import '../widgets/agent_stat_card.dart';
 import '../widgets/agent_territory_tab.dart';
 import '../widgets/agent_visits_calendar_tab.dart';
 import '../../../home/presentation/widgets/user_profile_sheet.dart';
+import '../../../admin/presentation/screens/admin_property_queue_screen.dart';
 
 class AgentHomeScreen extends StatefulWidget {
   final List<String> roles;
@@ -724,6 +725,21 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                   title: 'Prepare Legal Documents',
                   subtitle: '${_dashboard.pendingDocuments} post-visit document requests pending',
                   onTap: () => setState(() => _selectedIndex = 3),
+                ),
+                const SizedBox(height: 10),
+                _buildActionTile(
+                  icon: Icons.admin_panel_settings_rounded,
+                  color: const Color(0xFF00C6D4),
+                  title: 'Listing Approval Queue',
+                  subtitle: 'Review & approve submitted seller property listings',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminPropertyQueueScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 24),
               ]),

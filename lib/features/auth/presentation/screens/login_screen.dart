@@ -137,10 +137,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
       final roles = _loginViewModel.roles;
       final isAgent = roles.any((r) => r.trim().toUpperCase() == 'AGT');
+      final isAdmin = roles.any((r) => r.trim().toUpperCase() == 'ADM' || r.trim().toLowerCase() == 'admin');
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => isAgent
+          builder: (_) => (isAgent || isAdmin)
               ? AgentHomeScreen(roles: roles)
               : HomeScreen(
                   roles: roles,
@@ -175,10 +176,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
       final roles = _loginViewModel.roles;
       final isAgent = roles.any((r) => r.trim().toUpperCase() == 'AGT');
+      final isAdmin = roles.any((r) => r.trim().toUpperCase() == 'ADM' || r.trim().toLowerCase() == 'admin');
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => isAgent
+          builder: (_) => (isAgent || isAdmin)
               ? AgentHomeScreen(roles: roles)
               : HomeScreen(
                   roles: roles,

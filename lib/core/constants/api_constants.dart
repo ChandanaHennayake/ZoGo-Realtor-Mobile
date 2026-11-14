@@ -27,4 +27,12 @@ class ApiConstants {
   static const String agentTerritoryProperties = '/api/v1/agent/territory/properties';
   static const String agentVisits = '/api/v1/visits/agent';
   static String agentMarkVisited(String propertyId) => '/api/v1/agent/properties/$propertyId/visit';
+
+  // Admin & Review endpoints
+  static const String adminProperties = '/api/v1/admin/properties';
+  static String adminPropertyReview(String id) => '/api/v1/admin/properties/$id';
+  static String adminPropertyStartReview(String id) => '/api/v1/admin/properties/$id/start-review';
+  static String adminPropertyApprove(String id) => '/api/v1/admin/properties/$id/approve';
+  static String adminPropertyRequestChanges(String id) => '/api/v1/admin/properties/$id/request-changes';
+  static String adminPropertyReject(String id) => '/api/v1/admin/properties/$id/reject';
 }
