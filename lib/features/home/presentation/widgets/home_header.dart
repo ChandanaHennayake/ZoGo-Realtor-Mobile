@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../buyer/presentation/widgets/notifications_sheet.dart';
+import '../../../chat/presentation/screens/chat_inbox_screen.dart';
 import 'user_profile_sheet.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -77,6 +78,26 @@ class HomeHeader extends StatelessWidget {
               ),
 
               const Spacer(),
+
+              IconButton(
+                onPressed: () {
+                  final isSeller = (roles ?? []).any((r) => r.toUpperCase() == 'SEL');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatInboxScreen(currentUserRole: isSeller ? 'seller' : 'buyer'),
+                    ),
+                  );
+                },
+                padding: const EdgeInsets.only(right: 14),
+                constraints: const BoxConstraints(),
+                tooltip: 'In-App Messages',
+                icon: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
 
               Stack(
                 clipBehavior: Clip.none,

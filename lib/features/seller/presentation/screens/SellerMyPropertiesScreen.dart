@@ -11,6 +11,7 @@ import 'package:zogo_realtor/features/seller/presentation/screens/create_propert
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_documents_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_media_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/seller_property_details_screen.dart';
+import 'package:zogo_realtor/features/chat/presentation/screens/chat_screen.dart';
 
 
 /// Seller "My Properties" screen.
@@ -1700,6 +1701,31 @@ class _SellerMyPropertiesScreenState extends State<SellerMyPropertiesScreen> {
                         ),
                       ),
                     ] else ...[
+                      IconButton(
+                        tooltip: 'Chat with Assigned Realtor',
+                        style: IconButton.styleFrom(
+                          backgroundColor: primaryCyan.withValues(alpha: 0.1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.all(8),
+                        ),
+                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: primaryCyan),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                propertyId: propertyId,
+                                propertyTitle: title,
+                                recipientId: 'agent_assigned',
+                                recipientName: 'Assigned District Realtor',
+                                recipientRole: 'agent',
+                                currentUserRole: 'seller',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
                       OutlinedButton.icon(
                         onPressed: () => _openPropertyDetails(property),
                         style: OutlinedButton.styleFrom(

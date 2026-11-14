@@ -9,6 +9,7 @@ import 'package:zogo_realtor/features/seller/presentation/screens/create_propert
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_legal_details_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_documents_screen.dart';
 import 'package:zogo_realtor/features/seller/presentation/screens/create_property/property_media_screen.dart';
+import 'package:zogo_realtor/features/chat/presentation/screens/chat_screen.dart';
 
 class SellerPropertyDetailsScreen extends StatefulWidget {
   final String propertyId;
@@ -737,6 +738,21 @@ class _SellerPropertyDetailsScreenState
     );
   }
 
+  void _openChatWithAgent() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          propertyId: widget.propertyId,
+          propertyTitle: _property['title']?.toString() ?? 'My Property',
+          recipientId: 'agent_assigned',
+          recipientName: 'Assigned District Realtor',
+          recipientRole: 'agent',
+          currentUserRole: 'seller',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -756,6 +772,11 @@ class _SellerPropertyDetailsScreenState
         ),
         iconTheme: const IconThemeData(color: darkText),
         actions: [
+          IconButton(
+            tooltip: 'Chat with Assigned Realtor',
+            icon: const Icon(Icons.chat_bubble_outline_rounded, color: primaryCyan),
+            onPressed: _openChatWithAgent,
+          ),
           IconButton(
             tooltip: 'Edit Sections',
             icon: const Icon(Icons.edit_note, color: primaryCyan),
@@ -2132,6 +2153,20 @@ class _SellerPropertyDetailsScreenState
         top: false,
         child: Row(
           children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _openChatWithAgent,
+              child: Container(
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: primaryCyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: primaryCyan.withValues(alpha: 0.3)),
+                ),
+                child: const Icon(Icons.chat_bubble_rounded, color: primaryCyan, size: 20),
+              ),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _showSectionPicker,

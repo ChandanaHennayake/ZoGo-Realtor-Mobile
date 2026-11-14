@@ -12,6 +12,8 @@ import '../widgets/agent_property_card.dart';
 import '../widgets/agent_stat_card.dart';
 import '../widgets/agent_territory_tab.dart';
 import '../widgets/agent_visits_calendar_tab.dart';
+import 'agent_interested_leads_screen.dart';
+import '../../../chat/presentation/screens/chat_inbox_screen.dart';
 import '../../../home/presentation/widgets/user_profile_sheet.dart';
 import '../../../admin/presentation/screens/admin_property_queue_screen.dart';
 
@@ -546,6 +548,21 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         ),
                       ),
                       const SizedBox(width: 6),
+                      IconButton(
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(6),
+                        icon: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 21),
+                        tooltip: 'Messages & Inquiries',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ChatInboxScreen(currentUserRole: 'agent'),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 4),
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -653,7 +670,14 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                   icon: Icons.favorite_rounded,
                   startColor: const Color(0xFF06B6D4),
                   endColor: const Color(0xFF0284C7),
-                  onTap: () => setState(() => _selectedIndex = 1),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AgentInterestedLeadsScreen(agentService: _agentService),
+                      ),
+                    ).then((_) => _refreshAll());
+                  },
                 ),
                 AgentStatCard(
                   title: 'Pending Visits',
@@ -708,7 +732,14 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                   color: const Color(0xFF0284C7),
                   title: 'Review Buyer Interests',
                   subtitle: '${_dashboard.interestedProperties} properties with active buyer interest',
-                  onTap: () => setState(() => _selectedIndex = 1),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AgentInterestedLeadsScreen(agentService: _agentService),
+                      ),
+                    ).then((_) => _refreshAll());
+                  },
                 ),
                 const SizedBox(height: 10),
                 _buildActionTile(

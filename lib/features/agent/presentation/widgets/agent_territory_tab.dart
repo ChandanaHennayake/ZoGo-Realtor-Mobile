@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../buyer/presentation/screens/buyer_property_details_screen.dart';
 import '../../../chat/presentation/screens/chat_screen.dart';
+import '../screens/agent_interested_leads_screen.dart';
 import '../../data/services/agent_service.dart';
 import '../../models/agent_territory_property_model.dart';
 
@@ -130,6 +131,61 @@ class _AgentTerritoryTabState extends State<AgentTerritoryTab> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
             children: [
+              // Quick Banner: Buyer Leads & Inquiries
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AgentInterestedLeadsScreen(agentService: _agentService),
+                    ),
+                  );
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: primaryCyan.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: primaryCyan.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.people_alt_rounded, color: primaryCyan, size: 16),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Buyer Inquiries & Leads',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                            Text(
+                              'Review interested buyers, call or chat directly',
+                              style: TextStyle(color: Colors.white60, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: primaryCyan, size: 13),
+                    ],
+                  ),
+                ),
+              ),
+
               // Search input
               TextField(
                 controller: _searchController,

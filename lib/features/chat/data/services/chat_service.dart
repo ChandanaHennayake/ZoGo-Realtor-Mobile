@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../models/chat_message.dart';
 
 class ChatService {
@@ -69,6 +70,21 @@ class ChatService {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getConversations() async {
+    try {
+      final convListKey = 'user_conversations';
+      final existingRaw = await _storageSecureRead(convListKey);
+      if (existingRaw != null && existingRaw.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(existingRaw);
+        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting conversations: $e');
+      return [];
+    }
+  }
+
   Future<void> seedInitialGreetingIfEmpty({
     required String conversationId,
     required String propertyId,
@@ -77,9 +93,11 @@ class ChatService {
     required String agentName,
     required String buyerId,
     required String buyerName,
+    String? recipientRole,
   }) async {
     final existing = await getMessages(conversationId);
     if (existing.isEmpty) {
+      final isSeller = (recipientRole ?? '').toLowerCase() == 'seller';
       final greeting = ChatMessage(
         id: 'msg_greet_${DateTime.now().millisecondsSinceEpoch}',
         conversationId: conversationId,
@@ -90,7 +108,9 @@ class ChatService {
         senderRole: 'agent',
         recipientId: buyerId,
         recipientName: buyerName,
-        message: 'Hello $buyerName! Thank you for showing interest in "$propertyTitle". Feel free to ask questions or discuss visit arrangements here.',
+        message: isSeller
+            ? 'Hello $buyerName! Feel free to ask questions regarding "$propertyTitle", listing review, or coordinating with potential buyers.'
+            : 'Hello $buyerName! Thank you for showing interest in "$propertyTitle". Feel free to ask questions or discuss visit arrangements here.',
         timestamp: DateTime.now(),
         isRead: true,
       );
@@ -138,19 +158,24 @@ class ChatService {
     }
   }
 
-  // Internal helpers
+  // Internal persistent + memory storage
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static final Map<String, String> _inMemoryChatFallback = {};
 
   Future<String?> _storageSecureRead(String key) async {
     try {
-      // Use internal map or storage
+      final val = await _secureStorage.read(key: key);
+      if (val != null && val.isNotEmpty) return val;
       return _inMemoryChatFallback[key];
     } catch (_) {
-      return null;
+      return _inMemoryChatFallback[key];
     }
   }
 
   Future<void> _storageSecureWrite(String key, String value) async {
     _inMemoryChatFallback[key] = value;
+    try {
+      await _secureStorage.write(key: key, value: value);
+    } catch (_) {}
   }
 }
