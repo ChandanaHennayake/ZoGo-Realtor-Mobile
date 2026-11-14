@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/storage/secure_storage_service.dart';
-import '../../../auth/presentation/screens/get_started_screen.dart';
 import '../../../buyer/data/services/user_notification_service.dart';
 import '../../../buyer/presentation/screens/buyer_property_details_screen.dart';
 import '../../../buyer/presentation/widgets/notifications_sheet.dart';
@@ -10,6 +10,9 @@ import '../../models/agent_dashboard_model.dart';
 import '../../models/agent_property_model.dart';
 import '../widgets/agent_property_card.dart';
 import '../widgets/agent_stat_card.dart';
+import '../widgets/agent_territory_tab.dart';
+import '../widgets/agent_visits_calendar_tab.dart';
+import '../../../home/presentation/widgets/user_profile_sheet.dart';
 
 class AgentHomeScreen extends StatefulWidget {
   final List<String> roles;
@@ -34,17 +37,11 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   static const Color darkCyan = Color(0xFF008D97);
 
   AgentDashboardModel _dashboard = AgentDashboardModel.empty();
-  List<AgentPropertyItem> _interestedProperties = [];
-  List<AgentPropertyItem> _pendingVisits = [];
   List<AgentPropertyItem> _pendingDocuments = [];
 
   bool _isLoadingDashboard = true;
-  bool _isLoadingInterested = true;
-  bool _isLoadingVisits = true;
   bool _isLoadingDocs = true;
   int _unreadNotifications = 0;
-
-  String? _markingVisitedPropertyId;
 
   Map<String, String> _userProfile = {};
 
@@ -67,8 +64,6 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   Future<void> _refreshAll() async {
     await Future.wait([
       _loadDashboard(),
-      _loadInterested(),
-      _loadVisits(),
       _loadDocuments(),
       _loadUnreadNotifications(),
     ]);
@@ -94,28 +89,6 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     }
   }
 
-  Future<void> _loadInterested() async {
-    setState(() => _isLoadingInterested = true);
-    final data = await _agentService.getInterestedProperties();
-    if (mounted) {
-      setState(() {
-        _interestedProperties = data;
-        _isLoadingInterested = false;
-      });
-    }
-  }
-
-  Future<void> _loadVisits() async {
-    setState(() => _isLoadingVisits = true);
-    final data = await _agentService.getPendingVisits();
-    if (mounted) {
-      setState(() {
-        _pendingVisits = data;
-        _isLoadingVisits = false;
-      });
-    }
-  }
-
   Future<void> _loadDocuments() async {
     setState(() => _isLoadingDocs = true);
     final data = await _agentService.getPendingDocuments();
@@ -124,79 +97,6 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
         _pendingDocuments = data;
         _isLoadingDocs = false;
       });
-    }
-  }
-
-  Future<void> _handleMarkVisited(AgentPropertyItem item) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10B981)),
-            SizedBox(width: 8),
-            Text('Complete Visit'),
-          ],
-        ),
-        content: Text(
-          'Mark visit as completed for "${item.title}" with Buyer ${item.buyerName}?',
-          style: const TextStyle(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Yes, Visited'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() {
-      _markingVisitedPropertyId = item.propertyId;
-    });
-
-    final success = await _agentService.markVisited(
-      item.propertyId,
-      buyerId: item.buyerUserId.isNotEmpty ? item.buyerUserId : null,
-    );
-
-    if (mounted) {
-      setState(() {
-        _markingVisitedPropertyId = null;
-      });
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Property visit marked as completed!'),
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        _refreshAll();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Failed to update visit status.'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
     }
   }
 
@@ -356,70 +256,6 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     }
   }
 
-  Future<void> _handleRejectVisit(AgentPropertyItem item) async {
-    final reasonController = TextEditingController();
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.cancel_outlined, color: Color(0xFFEF4444)),
-            SizedBox(width: 8),
-            Text('Reject Visit Request'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Decline visit request for "${item.title}"?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: InputDecoration(
-                labelText: 'Reason *',
-                hintText: 'e.g. Property unavailable at this time slot',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              if (reasonController.text.trim().isEmpty) return;
-              Navigator.pop(ctx, true);
-            },
-            child: const Text('Decline'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    final success = await _agentService.rejectInquiry(
-      item.propertyId,
-      buyerId: item.buyerUserId.isNotEmpty ? item.buyerUserId : null,
-      reason: reasonController.text.trim(),
-    );
-
-    if (mounted) {
-      if (success) {
-        _refreshAll();
-      }
-    }
-  }
-
   Future<void> _handleVerifyDocuments(AgentPropertyItem item) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -511,6 +347,38 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     }
   }
 
+  Future<void> _handleCallBuyer(String? phone) async {
+    if (phone == null || phone.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No phone number available for this buyer.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final uri = Uri.parse('tel:$cleaned');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open phone dialer: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   void _openChatWithBuyer(AgentPropertyItem item) {
     if (item.buyerUserId.isEmpty && item.buyerName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -537,40 +405,40 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
     );
   }
 
-  Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out from Agent workspace?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+  Widget _buildTopProfileAvatar({bool isLight = false}) {
+    final initial = (_userProfile['firstName']?.isNotEmpty == true)
+        ? _userProfile['firstName']![0].toUpperCase()
+        : 'A';
+    return GestureDetector(
+      onTap: () => UserProfileSheet.show(context, roles: widget.roles),
+      child: Container(
+        width: 34,
+        height: 34,
+        margin: const EdgeInsets.only(right: 14),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [primaryCyan, Color(0xFF6366F1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          border: Border.all(
+            color: isLight ? Colors.white70 : primaryCyan.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            initial,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
             ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log Out'),
           ),
-        ],
+        ),
       ),
     );
-
-    if (confirm == true) {
-      await _secureStorage.clearAll();
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const GetStartedScreen()),
-          (route) => false,
-        );
-      }
-    }
   }
 
   @override
@@ -581,10 +449,9 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
         index: _selectedIndex,
         children: [
           _buildDashboardTab(),
-          _buildInterestedTab(),
+          _buildTerritoryTab(),
           _buildVisitsTab(),
           _buildDocumentsTab(),
-          _buildProfileTab(),
         ],
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
@@ -715,6 +582,8 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                             ),
                         ],
                       ),
+                      const SizedBox(width: 8),
+                      _buildTopProfileAvatar(isLight: true),
                     ],
                   ),
                   const SizedBox(height: 22),
@@ -916,117 +785,40 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
   }
 
   // ============================================================
-  // TAB 1: INTERESTED PROPERTIES
+  // TAB 1: TERRITORY LISTINGS
   // ============================================================
-  Widget _buildInterestedTab() {
+  Widget _buildTerritoryTab() {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Interested Properties', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
+        title: const Text('Territory Listings', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: primaryCyan),
-            onPressed: _loadInterested,
-          ),
+          _buildTopProfileAvatar(),
         ],
       ),
-      body: _isLoadingInterested
-          ? const Center(child: CircularProgressIndicator(color: primaryCyan))
-          : _interestedProperties.isEmpty
-              ? _buildEmptyState(
-                  icon: Icons.favorite_border_rounded,
-                  title: 'No Interested Properties',
-                  subtitle: 'Properties where buyers express interest in your assigned districts will show here.',
-                  onRefresh: _loadInterested,
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadInterested,
-                  color: primaryCyan,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _interestedProperties.length,
-                    itemBuilder: (ctx, i) {
-                      final item = _interestedProperties[i];
-                      return AgentPropertyCard(
-                        item: item,
-                        isMarkingVisited: _markingVisitedPropertyId == item.propertyId,
-                        onMarkVisited: () => _handleMarkVisited(item),
-                        onMarkSold: () => _handleMarkSold(item),
-                        onRejectInquiry: () => _handleRejectInquiry(item),
-                        onChatWithBuyer: () => _openChatWithBuyer(item),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
+      body: const AgentTerritoryTab(),
     );
   }
 
   // ============================================================
-  // TAB 2: PENDING VISITS
+  // TAB 2: VISITS CALENDAR
   // ============================================================
   Widget _buildVisitsTab() {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Pending Visits', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
+        title: const Text('Visits Calendar', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: primaryCyan),
-            onPressed: _loadVisits,
-          ),
+          _buildTopProfileAvatar(),
         ],
       ),
-      body: _isLoadingVisits
-          ? const Center(child: CircularProgressIndicator(color: primaryCyan))
-          : _pendingVisits.isEmpty
-              ? _buildEmptyState(
-                  icon: Icons.event_available_rounded,
-                  title: 'No Pending Visits',
-                  subtitle: 'When buyers request property visits in your districts, they appear here for inspection completion.',
-                  onRefresh: _loadVisits,
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadVisits,
-                  color: primaryCyan,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _pendingVisits.length,
-                    itemBuilder: (ctx, i) {
-                      final item = _pendingVisits[i];
-                      return AgentPropertyCard(
-                        item: item,
-                        isMarkingVisited: _markingVisitedPropertyId == item.propertyId,
-                        onMarkVisited: () => _handleMarkVisited(item),
-                        onRejectVisit: () => _handleRejectVisit(item),
-                        onMarkSold: () => _handleMarkSold(item),
-                        onRejectInquiry: () => _handleRejectInquiry(item),
-                        onChatWithBuyer: () => _openChatWithBuyer(item),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
+      body: const AgentVisitsCalendarTab(),
     );
   }
 
@@ -1046,6 +838,7 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
             icon: const Icon(Icons.refresh_rounded, color: primaryCyan),
             onPressed: _loadDocuments,
           ),
+          _buildTopProfileAvatar(),
         ],
       ),
       body: _isLoadingDocs
@@ -1071,12 +864,21 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                         onRejectDocuments: () => _handleRejectDocuments(item),
                         onMarkSold: () => _handleMarkSold(item),
                         onRejectInquiry: () => _handleRejectInquiry(item),
+                        onCallBuyer: () => _handleCallBuyer(item.buyerPhone),
                         onChatWithBuyer: () => _openChatWithBuyer(item),
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId),
+                              builder: (_) => BuyerPropertyDetailsScreen(
+                                propertyId: item.propertyId,
+                                isAgentView: true,
+                                buyerName: item.buyerName,
+                                buyerPhoneNumber: item.buyerPhone,
+                                buyerUserId: item.buyerUserId,
+                                sellerName: item.sellerName,
+                                sellerPhoneNumber: item.sellerPhone,
+                              ),
                             ),
                           );
                         },
@@ -1084,183 +886,6 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
                     },
                   ),
                 ),
-    );
-  }
-
-  // ============================================================
-  // TAB 4: PROFILE & SETTINGS
-  // ============================================================
-  Widget _buildProfileTab() {
-    final name = '${_userProfile['firstName'] ?? 'ZoGo'} ${_userProfile['lastName'] ?? 'Agent'}';
-    final email = _userProfile['email'] ?? 'agent@zogo.com';
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Agent Profile', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          // Profile Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [primaryCyan, darkCyan],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryCyan.withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.person_rounded, size: 40, color: Colors.white),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  email,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: primaryCyan.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.shield_rounded, size: 16, color: primaryCyan),
-                      SizedBox(width: 6),
-                      Text(
-                        'Licensed Real Estate Agent (AGT)',
-                        style: TextStyle(
-                          color: primaryCyan,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Operating Districts Info
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.location_city_rounded, color: primaryCyan, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Assigned Territory',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Primary City: Colombo',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Operating Districts:',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _buildDistrictChip('Colombo (Western Province)'),
-                    _buildDistrictChip('Gampaha (Western Province)'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Log Out
-          ListTile(
-            leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            title: const Text(
-              'Log Out from Agent Workspace',
-              style: TextStyle(fontWeight: FontWeight.w700, color: Colors.redAccent),
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFFFFCDD2)),
-            ),
-            tileColor: Colors.white,
-            onTap: _logout,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDistrictChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-      ),
     );
   }
 
@@ -1339,24 +964,19 @@ class _AgentHomeScreenState extends State<AgentHomeScreen> {
           label: 'Dashboard',
         ),
         NavigationDestination(
-          icon: Icon(Icons.favorite_border_rounded),
-          selectedIcon: Icon(Icons.favorite_rounded, color: primaryCyan),
-          label: 'Interested',
+          icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map_rounded, color: primaryCyan),
+          label: 'Territory',
         ),
         NavigationDestination(
-          icon: Icon(Icons.event_available_outlined),
-          selectedIcon: Icon(Icons.event_available_rounded, color: primaryCyan),
+          icon: Icon(Icons.calendar_month_outlined),
+          selectedIcon: Icon(Icons.calendar_month_rounded, color: primaryCyan),
           label: 'Visits',
         ),
         NavigationDestination(
           icon: Icon(Icons.folder_shared_outlined),
           selectedIcon: Icon(Icons.folder_shared_rounded, color: primaryCyan),
           label: 'Documents',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline_rounded),
-          selectedIcon: Icon(Icons.person_rounded, color: primaryCyan),
-          label: 'Profile',
         ),
       ],
     );

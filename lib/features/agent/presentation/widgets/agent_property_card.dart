@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import '../../models/agent_property_model.dart';
 
@@ -6,6 +7,7 @@ class AgentPropertyCard extends StatelessWidget {
   final AgentPropertyItem item;
   final VoidCallback? onMarkVisited;
   final bool isMarkingVisited;
+  final VoidCallback? onCallBuyer;
   final VoidCallback? onChatWithBuyer;
   final VoidCallback? onViewBuyerDetails;
   final VoidCallback? onTap;
@@ -20,6 +22,7 @@ class AgentPropertyCard extends StatelessWidget {
     required this.item,
     this.onMarkVisited,
     this.isMarkingVisited = false,
+    this.onCallBuyer,
     this.onChatWithBuyer,
     this.onViewBuyerDetails,
     this.onTap,
@@ -32,6 +35,38 @@ class AgentPropertyCard extends StatelessWidget {
 
   static const Color primaryCyan = Color(0xFF00C6D4);
   static const Color accentPink = Color(0xFFFF2D7A);
+
+  Future<void> _makePhoneCall(BuildContext context, String? phone) async {
+    if (phone == null || phone.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No phone number available for this buyer.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final uri = Uri.parse('tel:$cleaned');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open phone dialer: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   String _formatCurrency(double amount) {
     if (amount >= 10000000) {
@@ -378,16 +413,30 @@ class AgentPropertyCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 1),
-                          Text(
-                            item.buyerPhone != null && item.buyerPhone!.isNotEmpty
-                                ? item.buyerPhone!
-                                : 'Tap for details',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: item.buyerPhone != null ? const Color(0xFF3B82F6) : const Color(0xFF94A3B8),
-                              fontWeight: FontWeight.w600,
+                          InkWell(
+                            onTap: () => _makePhoneCall(context, item.buyerPhone),
+                            borderRadius: BorderRadius.circular(4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.phone_rounded, size: 11, color: item.buyerPhone != null ? const Color(0xFF10B981) : const Color(0xFF94A3B8)),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                  child: Text(
+                                    item.buyerPhone != null && item.buyerPhone!.isNotEmpty
+                                        ? item.buyerPhone!
+                                        : 'No phone',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: item.buyerPhone != null ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'monospace',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -468,17 +517,42 @@ class AgentPropertyCard extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Responsive Action Row: Chat & Buyer Details (both Expanded)
+            // Responsive Action Row: Call Buyer, Chat with Buyer & Buyer Details
             Row(
               children: [
                 Expanded(
+                  flex: 3,
                   child: ElevatedButton.icon(
-                    onPressed: onChatWithBuyer,
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
+                    onPressed: onCallBuyer ?? () => _makePhoneCall(context, item.buyerPhone),
+                    icon: const Icon(Icons.phone_rounded, size: 13),
                     label: const FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Chat with Buyer',
+                        'Call Buyer',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  flex: 3,
+                  child: ElevatedButton.icon(
+                    onPressed: onChatWithBuyer,
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 13),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Chat',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -493,22 +567,23 @@ class AgentPropertyCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
+                  flex: 2,
                   child: OutlinedButton.icon(
                     onPressed: onViewBuyerDetails ?? () => _showBuyerDetailsSheet(context),
-                    icon: const Icon(Icons.person_search_rounded, size: 14),
+                    icon: const Icon(Icons.person_search_rounded, size: 13),
                     label: const FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Buyer Details',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                        'Details',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF0F172A),
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
+                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 9),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -842,6 +917,23 @@ class AgentPropertyCard extends StatelessWidget {
                 // Action Buttons inside Modal
                 Row(
                   children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _makePhoneCall(context, item.buyerPhone);
+                        },
+                        icon: const Icon(Icons.phone_rounded, size: 18),
+                        label: const Text('Call Buyer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
