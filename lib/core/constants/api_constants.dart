@@ -1,5 +1,33 @@
+import 'package:flutter/foundation.dart';
+import '../storage/secure_storage_service.dart';
+
 class ApiConstants {
-  static const String baseUrl = 'http://192.168.0.200:5000';
+  static const String defaultBaseUrl = 'http://192.168.0.200:5000';
+  static String _currentBaseUrl = defaultBaseUrl;
+
+  static String get baseUrl => _currentBaseUrl;
+
+  static Future<void> init() async {
+    try {
+      final saved = await SecureStorageService().getServerUrl();
+      if (saved != null && saved.trim().isNotEmpty) {
+        _currentBaseUrl = saved.trim();
+        debugPrint('ApiConstants: Active server URL -> $_currentBaseUrl');
+      }
+    } catch (e) {
+      debugPrint('ApiConstants: Error loading server URL: $e');
+    }
+  }
+
+  static Future<void> setBaseUrl(String url) async {
+    _currentBaseUrl = url.trim();
+    try {
+      await SecureStorageService().setServerUrl(_currentBaseUrl);
+      debugPrint('ApiConstants: Updated server URL -> $_currentBaseUrl');
+    } catch (e) {
+      debugPrint('ApiConstants: Error saving server URL: $e');
+    }
+  }
 
   static const String login = '/api/Auth/login';
   static const String register = '/api/Auth/register';

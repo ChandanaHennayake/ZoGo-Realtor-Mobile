@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:zogo_realtor/core/constants/api_constants.dart';
 import 'package:zogo_realtor/core/network/connectivity_service.dart';
 import 'package:zogo_realtor/core/widgets/connectivity_banner_wrapper.dart';
 import 'package:zogo_realtor/features/auth/presentation/screens/splash_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ApiConstants.init();
   ConnectivityService.instance.startMonitoring();
   runApp(const ZoGoApp());
 }

@@ -13,6 +13,7 @@ import '../../../agent/presentation/screens/agent_home_screen.dart';
 
 // NEW: seller activation API + constants.
 import 'package:zogo_realtor/core/constants/api_constants.dart';
+import 'package:zogo_realtor/core/widgets/server_config_dialog.dart';
 import 'package:zogo_realtor/features/seller/data/services/seller_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -283,7 +284,15 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 30),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    tooltip: 'Configure Server IP',
+                    icon: const Icon(Icons.dns_rounded, color: Color(0xFF6B7280), size: 20),
+                    onPressed: () => ServerConfigDialog.show(context),
+                  ),
+                ),
+                const SizedBox(height: 10),
 
                 // --------------------------------------------------
                 // Logo / Header

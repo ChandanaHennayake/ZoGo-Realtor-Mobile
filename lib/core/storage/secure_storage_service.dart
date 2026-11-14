@@ -11,6 +11,7 @@ class SecureStorageService {
   static const _emailKey = 'user_email';
   static const _rolesKey = 'user_roles';
   static const _tokenExpiryKey = 'access_token_expires_at';
+  static const _serverUrlKey = 'custom_server_base_url';
 
   final FlutterSecureStorage _storage;
 
@@ -122,6 +123,14 @@ class SecureStorageService {
       if (parsed != null && parsed >= 1 && parsed <= 7) return parsed;
     }
     return 1;
+  }
+
+  Future<void> setServerUrl(String url) async {
+    await _storage.write(key: _serverUrlKey, value: url);
+  }
+
+  Future<String?> getServerUrl() {
+    return _storage.read(key: _serverUrlKey);
   }
 
   Future<void> clearAll() async {

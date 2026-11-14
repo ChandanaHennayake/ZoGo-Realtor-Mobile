@@ -163,4 +163,154 @@ class BuyerOfferService {
       throw Exception('Network error while withdrawing offer.');
     }
   }
+
+  // ============================================================
+  // GET PROPERTY OFFERS (GET /api/v1/offers/property/{propertyId})
+  // ============================================================
+
+  Future<List<PropertyOfferModel>> getPropertyOffers(String propertyId) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '${ApiConstants.offers}/property/$propertyId';
+      final response = await _dio.get(url, options: Options(headers: headers));
+
+      if (response.statusCode == 200) {
+        final resData = response.data;
+        final list = resData is Map && resData.containsKey('data') && resData['data'] is List
+            ? resData['data'] as List
+            : (resData is List ? resData : []);
+
+        return list
+            .map((item) => PropertyOfferModel.fromJson(Map<String, dynamic>.from(item as Map)))
+            .toList();
+      }
+
+      final errorMsg = _parseErrorMessage(
+        response.data,
+        response.statusCode,
+        'Failed to load property offers (HTTP ${response.statusCode})',
+      );
+      throw Exception(errorMsg);
+    } on DioException catch (dioErr) {
+      debugPrint('DioException loading property offers: $dioErr');
+      throw Exception('Network error while fetching property offers.');
+    }
+  }
+
+  // ============================================================
+  // COUNTER OFFER (PUT /api/v1/offers/{offerId}/counter)
+  // ============================================================
+
+  Future<PropertyOfferModel> counterOffer(
+    String offerId, {
+    required double counterAmount,
+    String? notes,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '${ApiConstants.offers}/$offerId/counter';
+      final body = {
+        'counterAmount': counterAmount,
+        if (notes != null && notes.isNotEmpty) 'sellerNotes': notes,
+      };
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode == 200) {
+        final resData = response.data;
+        final data = resData is Map && resData.containsKey('data') && resData['data'] != null
+            ? resData['data']
+            : resData;
+        return PropertyOfferModel.fromJson(Map<String, dynamic>.from(data as Map));
+      }
+
+      final errorMsg = _parseErrorMessage(
+        response.data,
+        response.statusCode,
+        'Failed to submit counter offer (HTTP ${response.statusCode})',
+      );
+      throw Exception(errorMsg);
+    } on DioException catch (dioErr) {
+      debugPrint('DioException submitting counter offer: $dioErr');
+      throw Exception('Network error while submitting counter offer.');
+    }
+  }
+
+  // ============================================================
+  // ACCEPT OFFER (PUT /api/v1/offers/{offerId}/accept)
+  // ============================================================
+
+  Future<PropertyOfferModel> acceptOffer(String offerId, {String? notes}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '${ApiConstants.offers}/$offerId/accept';
+      final body = {
+        if (notes != null && notes.isNotEmpty) 'sellerNotes': notes,
+      };
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode == 200) {
+        final resData = response.data;
+        final data = resData is Map && resData.containsKey('data') && resData['data'] != null
+            ? resData['data']
+            : resData;
+        return PropertyOfferModel.fromJson(Map<String, dynamic>.from(data as Map));
+      }
+
+      final errorMsg = _parseErrorMessage(
+        response.data,
+        response.statusCode,
+        'Failed to accept offer (HTTP ${response.statusCode})',
+      );
+      throw Exception(errorMsg);
+    } on DioException catch (dioErr) {
+      debugPrint('DioException accepting offer: $dioErr');
+      throw Exception('Network error while accepting offer.');
+    }
+  }
+
+  // ============================================================
+  // REJECT OFFER (PUT /api/v1/offers/{offerId}/reject)
+  // ============================================================
+
+  Future<PropertyOfferModel> rejectOffer(String offerId, {required String reason}) async {
+    try {
+      final headers = await _authHeaders();
+      final url = '${ApiConstants.offers}/$offerId/reject';
+      final body = {'reason': reason};
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode == 200) {
+        final resData = response.data;
+        final data = resData is Map && resData.containsKey('data') && resData['data'] != null
+            ? resData['data']
+            : resData;
+        return PropertyOfferModel.fromJson(Map<String, dynamic>.from(data as Map));
+      }
+
+      final errorMsg = _parseErrorMessage(
+        response.data,
+        response.statusCode,
+        'Failed to reject offer (HTTP ${response.statusCode})',
+      );
+      throw Exception(errorMsg);
+    } on DioException catch (dioErr) {
+      debugPrint('DioException rejecting offer: $dioErr');
+      throw Exception('Network error while rejecting offer.');
+    }
+  }
 }

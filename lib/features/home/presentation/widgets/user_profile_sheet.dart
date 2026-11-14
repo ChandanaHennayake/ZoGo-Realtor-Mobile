@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/storage/secure_storage_service.dart';
+import '../../../../core/widgets/server_config_dialog.dart';
 import '../../../auth/presentation/screens/get_started_screen.dart';
 import '../../../seller/presentation/screens/seller_activation_screen.dart';
 import '../../../admin/presentation/screens/admin_property_queue_screen.dart';
@@ -433,6 +435,16 @@ class UserProfileSheet extends StatelessWidget {
                               subtitle: const Text('Role-based verified access', style: TextStyle(color: Colors.white38, fontSize: 11)),
                               trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38),
                               onTap: () {},
+                            ),
+                            const Divider(color: Colors.white10, height: 1),
+                            ListTile(
+                              leading: const Icon(Icons.dns_rounded, color: primaryCyan, size: 20),
+                              title: const Text('Server Environment', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                              subtitle: Text(ApiConstants.baseUrl, style: const TextStyle(color: Colors.white38, fontSize: 11, fontFamily: 'monospace')),
+                              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+                              onTap: () {
+                                ServerConfigDialog.show(context);
+                              },
                             ),
                             const Divider(color: Colors.white10, height: 1),
                             ListTile(
