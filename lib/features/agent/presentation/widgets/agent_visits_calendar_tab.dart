@@ -127,6 +127,123 @@ class _AgentVisitsCalendarTabState extends State<AgentVisitsCalendarTab> {
     }
   }
 
+  Future<void> _handleRejectVisit(PropertyVisitModel visit) async {
+    final reasonController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final shouldReject = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.cancel_outlined, color: Colors.redAccent, size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Reject Visit Request',
+              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Decline the visit request for ${visit.propertyTitle}?',
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: reasonController,
+                maxLines: 3,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Provide a reason (e.g. Schedule conflict, property unavailable)...',
+                  hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: primaryCyan),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Please enter a reason for rejection';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF94A3B8))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Reject Visit'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldReject != true) return;
+
+    setState(() => _processingVisitId = visit.visitId);
+    try {
+      final success = await _agentService.rejectVisit(
+        visit.visitId,
+        reason: reasonController.text.trim(),
+      );
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Visit request rejected.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        _loadVisits();
+      } else {
+        throw Exception('Failed to reject visit.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _processingVisitId = null);
+    }
+  }
+
   Future<void> _handleMarkVisited(PropertyVisitModel visit) async {
     setState(() => _processingVisitId = visit.visitId);
     try {
@@ -785,12 +902,12 @@ class _AgentVisitsCalendarTabState extends State<AgentVisitsCalendarTab> {
                     )
                   : Row(
                       children: [
-                        if (item.status == PropertyVisitModel.statusRequested)
+                        if (item.status == PropertyVisitModel.statusRequested) ...[
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () => _handleConfirmVisit(item),
                               icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-                              label: const Text('Confirm Visit'),
+                              label: const Text('Confirm'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: primaryCyan,
                                 foregroundColor: Colors.black,
@@ -799,21 +916,45 @@ class _AgentVisitsCalendarTabState extends State<AgentVisitsCalendarTab> {
                               ),
                             ),
                           ),
-                        if (item.status == PropertyVisitModel.statusRequested)
-                          const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _handleMarkVisited(item),
-                            icon: const Icon(Icons.task_alt_rounded, size: 16),
-                            label: const Text('Mark Visited'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              elevation: 0,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _handleRejectVisit(item),
+                              icon: const Icon(Icons.cancel_outlined, size: 16),
+                              label: const Text('Reject'),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFFEF4444)),
+                                foregroundColor: const Color(0xFFEF4444),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
                             ),
                           ),
-                        ),
+                        ] else if (item.status == PropertyVisitModel.statusConfirmed) ...[
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _handleMarkVisited(item),
+                              icon: const Icon(Icons.task_alt_rounded, size: 16),
+                              label: const Text('Mark Visited'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => _handleRejectVisit(item),
+                            icon: const Icon(Icons.close_rounded, size: 16),
+                            label: const Text('Decline'),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFEF4444)),
+                              foregroundColor: const Color(0xFFEF4444),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
             ),

@@ -649,6 +649,21 @@ class _BuyerPropertyDetailsScreenState
                 } catch (e) {
                   debugPrint('Could not launch call: $e');
                 }
+
+                // Asynchronously record contact interaction in database so call activity is tracked
+                try {
+                  if (!_isInterested) {
+                    await BuyerPropertyInterestService().setInterest(p.propertyId, PropertyInterest.statusInterested);
+                    if (mounted) {
+                      setState(() {
+                        _isInterested = true;
+                      });
+                      _interactionKey.currentState?.reload();
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('Could not track call interest: $e');
+                }
               },
             ),
             const SizedBox(width: 8),
