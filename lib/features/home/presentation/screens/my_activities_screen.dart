@@ -4,7 +4,6 @@ import '../../../../features/buyer/data/services/buyer_visit_service.dart';
 import '../../../../features/buyer/models/property_offer_model.dart';
 import '../../../../features/buyer/models/property_visit_model.dart';
 import '../../../../features/buyer/presentation/screens/buyer_property_details_screen.dart';
-import '../../../../features/seller/presentation/screens/SellerMyPropertiesScreen.dart';
 
 class MyActivitiesScreen extends StatefulWidget {
   final bool hasSellerRole;
@@ -45,7 +44,7 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: widget.hasSellerRole ? 3 : 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadVisits();
     _loadOffers();
   }
@@ -151,7 +150,7 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
                   children: [
                     const Icon(Icons.calendar_month_rounded, size: 17),
                     const SizedBox(width: 5),
-                    Text('Visits ()'),
+                    Text('Visits (${_visits.length})'),
                   ],
                 ),
               ),
@@ -164,25 +163,11 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
                   children: [
                     const Icon(Icons.local_offer_rounded, size: 17),
                     const SizedBox(width: 5),
-                    Text('Offers ()'),
+                    Text('Offers (${_offers.length})'),
                   ],
                 ),
               ),
             ),
-            if (widget.hasSellerRole)
-              const Tab(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.apartment_rounded, size: 17),
-                      SizedBox(width: 5),
-                      Text('My Listings'),
-                    ],
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -191,11 +176,6 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
         children: [
           _buildVisitsTab(),
           _buildOffersTab(),
-          if (widget.hasSellerRole)
-            SellerMyPropertiesScreen(
-              onListProperty: widget.onListProperty,
-              isEmbedded: true,
-            ),
         ],
       ),
     );

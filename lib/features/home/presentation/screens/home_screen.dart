@@ -3,9 +3,11 @@ import 'package:zogo_realtor/features/agent/presentation/screens/agent_home_scre
 
 import '../widgets/home_header.dart';
 import '../widgets/property_type_card.dart';
+import '../widgets/user_profile_sheet.dart';
 import 'my_activities_screen.dart';
 
 import 'package:zogo_realtor/features/seller/presentation/screens/seller_activation_screen.dart';
+import 'package:zogo_realtor/features/seller/presentation/screens/SellerMyPropertiesScreen.dart';
 import 'package:zogo_realtor/features/buyer/data/services/buyer_favorite_service.dart';
 import 'package:zogo_realtor/features/buyer/data/services/buyer_property_service.dart';
 import 'package:zogo_realtor/features/buyer/models/buyer_property_list_item.dart';
@@ -256,6 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _selectedIndex,
         children: [
           SafeArea(bottom: false, child: _buildHome()),
+          SafeArea(bottom: false, child: _buildListingsTab()),
           MyActivitiesScreen(
             hasSellerRole: _hasSellerRole,
             onExploreProperties: () {
@@ -269,6 +272,80 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  // ============================================================
+  // LISTINGS TAB (SELLER MY PROPERTIES OR ENABLE SELLER PROMPT)
+  // ============================================================
+
+  Widget _buildListingsTab() {
+    if (_hasSellerRole) {
+      return SellerMyPropertiesScreen(
+        onListProperty: widget.onListProperty,
+        isEmbedded: true,
+      );
+    }
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: primaryCyan.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.storefront_rounded,
+                size: 42,
+                color: primaryCyan,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Seller Account Required',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Activate your seller account to list and manage your properties directly inside ZoGo Realtor.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _handleSell,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryCyan,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.verified_user_rounded),
+              label: const Text(
+                'Activate Seller Account',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -288,6 +365,16 @@ class _HomeScreenState extends State<HomeScreen> {
           SliverToBoxAdapter(
             child: HomeHeader(
               roles: _roles,
+              onProfileTap: () {
+                UserProfileSheet.show(
+                  context,
+                  roles: _roles,
+                  onRolesUpdated: () {
+                    _addSellerRoleLocally();
+                  },
+                  onActivateSeller: widget.onActivateSeller,
+                );
+              },
               searchController: _searchController,
               onSearchChanged: (val) {
                 setState(() {
@@ -407,7 +494,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _handleSell() async {
     if (_hasSellerRole) {
-      _openMyActivities();
+      _openListingsTab();
       return;
     }
 
@@ -434,10 +521,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    _openMyActivities();
+    _openListingsTab();
   }
 
-  void _openMyActivities() {
+  void _openListingsTab() {
     setState(() {
       _selectedIndex = 1;
     });
@@ -881,6 +968,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icon(Icons.home_outlined),
           selectedIcon: Icon(Icons.home_rounded),
           label: 'Home',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.apartment_outlined),
+          selectedIcon: Icon(Icons.apartment_rounded),
+          label: 'Listings',
         ),
         NavigationDestination(
           icon: Icon(Icons.local_activity_outlined),
