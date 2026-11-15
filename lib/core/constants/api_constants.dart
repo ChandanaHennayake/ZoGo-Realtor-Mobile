@@ -55,6 +55,7 @@ class ApiConstants {
   static const String agentTerritoryProperties = '/api/v1/agent/territory/properties';
   static const String agentVisits = '/api/v1/visits/agent';
   static String agentMarkVisited(String propertyId) => '/api/v1/agent/properties/$propertyId/visit';
+  static String agentMarkVisitRequested(String propertyId) => '/api/v1/agent/properties/$propertyId/visit-request';
 
   // Admin & Review endpoints
   static const String adminProperties = '/api/v1/admin/properties';

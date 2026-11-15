@@ -272,6 +272,221 @@ class _AgentInterestedLeadsScreenState extends State<AgentInterestedLeadsScreen>
     );
   }
 
+  Future<void> _handleMarkVisitRequested(AgentPropertyItem lead) async {
+    final noteController = TextEditingController(text: 'Advisor requested property site visit');
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    String selectedSlot = 'Morning (09:00 AM - 12:00 PM)';
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: cardDark,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Colors.white12),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: purpleAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.calendar_month_rounded, color: purpleAccent, size: 22),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Mark Visit Requested',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Set a visit request for buyer ${lead.buyerName} for "${lead.title}". This will immediately update the buyer\'s portal and territory status.',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Preferred Time Slot', style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedSlot,
+                        isExpanded: true,
+                        dropdownColor: cardDark,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Morning (09:00 AM - 12:00 PM)',
+                            child: Text('Morning (09:00 AM - 12:00 PM)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Afternoon (01:00 PM - 04:00 PM)',
+                            child: Text('Afternoon (01:00 PM - 04:00 PM)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Evening (04:00 PM - 06:30 PM)',
+                            child: Text('Evening (04:00 PM - 06:30 PM)'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => selectedSlot = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Advisor Notes', style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: noteController,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.05),
+                      hintText: 'Add note for buyer or seller...',
+                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: purpleAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                label: const Text('Confirm Request', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await _agentService.markVisitRequested(
+      lead.propertyId,
+      buyerId: lead.buyerUserId,
+      scheduledAt: selectedDate,
+      timeSlot: selectedSlot,
+      notes: noteController.text.trim(),
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Visit request created for ${lead.buyerName}. Visible in buyer portal!'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadLeads();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update visit request status. Please try again.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleMarkVisited(AgentPropertyItem lead) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.white12),
+        ),
+        title: const Text('Mark Property Visited', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text(
+          'Confirm that buyer ${lead.buyerName} has completed their site visit for "${lead.title}"?',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm Visited'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final success = await _agentService.markVisited(
+      lead.propertyId,
+      buyerId: lead.buyerUserId.isNotEmpty ? lead.buyerUserId : null,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Visit marked as completed!'),
+          backgroundColor: Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadLeads();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to mark visited.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -620,6 +835,49 @@ class _AgentInterestedLeadsScreenState extends State<AgentInterestedLeadsScreen>
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  // Advisor Workflow Action: Mark Visit Requested or Mark Visited
+                  if (lead.interactionStatus != 3) ...[
+                    Row(
+                      children: [
+                        if (lead.interactionStatus != 2) ...[
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _handleMarkVisitRequested(lead),
+                              icon: const Icon(Icons.event_available_rounded, size: 16, color: purpleAccent),
+                              label: const Text(
+                                'Mark Visit Requested',
+                                style: TextStyle(color: purpleAccent, fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: purpleAccent.withValues(alpha: 0.6)),
+                                backgroundColor: purpleAccent.withValues(alpha: 0.08),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _handleMarkVisited(lead),
+                              icon: const Icon(Icons.check_circle_rounded, size: 16),
+                              label: const Text(
+                                'Mark Completed (Visited)',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

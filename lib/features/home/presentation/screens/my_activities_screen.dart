@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../features/buyer/data/services/buyer_offer_service.dart';
+import '../../../../features/buyer/data/services/buyer_property_interest_service.dart';
 import '../../../../features/buyer/data/services/buyer_visit_service.dart';
+import '../../../../features/buyer/models/property_interest.dart';
 import '../../../../features/buyer/models/property_offer_model.dart';
 import '../../../../features/buyer/models/property_visit_model.dart';
 import '../../../../features/buyer/presentation/screens/buyer_property_details_screen.dart';
@@ -32,27 +34,54 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
   late final TabController _tabController;
   final BuyerVisitService _visitService = BuyerVisitService();
   final BuyerOfferService _offerService = BuyerOfferService();
+  final BuyerPropertyInterestService _interestService = BuyerPropertyInterestService();
 
   List<PropertyVisitModel> _visits = [];
   List<PropertyOfferModel> _offers = [];
+  List<BuyerInterestedPropertyModel> _interests = [];
 
   bool _isLoadingVisits = true;
   bool _isLoadingOffers = true;
+  bool _isLoadingInterests = true;
   String? _visitsError;
   String? _offersError;
+  String? _interestsError;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadVisits();
     _loadOffers();
+    _loadInterests();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadInterests() async {
+    setState(() {
+      _isLoadingInterests = true;
+      _interestsError = null;
+    });
+
+    try {
+      final items = await _interestService.getMyInterests();
+      if (!mounted) return;
+      setState(() {
+        _interests = items;
+        _isLoadingInterests = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _interestsError = e.toString().replaceFirst('Exception: ', '');
+        _isLoadingInterests = false;
+      });
+    }
   }
 
   Future<void> _loadVisits() async {
@@ -129,6 +158,7 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
             onPressed: () {
               _loadVisits();
               _loadOffers();
+              _loadInterests();
             },
           ),
         ],
@@ -142,6 +172,19 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
           tabs: [
+            Tab(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.favorite_rounded, size: 17),
+                    const SizedBox(width: 5),
+                    Text('Interested (${_interests.length})'),
+                  ],
+                ),
+              ),
+            ),
             Tab(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -174,9 +217,248 @@ class _MyActivitiesScreenState extends State<MyActivitiesScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
+          _buildInterestedTab(),
           _buildVisitsTab(),
           _buildOffersTab(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInterestedTab() {
+    if (_isLoadingInterests) {
+      return const Center(child: CircularProgressIndicator(color: primaryCyan));
+    }
+
+    if (_interestsError != null && _interests.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent),
+              const SizedBox(height: 12),
+              const Text(
+                'Failed to load interested properties',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _interestsError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: secondaryGray, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadInterests,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryCyan,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Try Again'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_interests.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: primaryCyan.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.favorite_border_rounded, size: 38, color: primaryCyan),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'No Interested Properties Yet',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: darkText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Properties where you expressed interest will appear here with live advisor and visit progress.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: secondaryGray, height: 1.5),
+              ),
+              const SizedBox(height: 20),
+              if (widget.onExploreProperties != null)
+                ElevatedButton.icon(
+                  onPressed: widget.onExploreProperties,
+                  icon: const Icon(Icons.search_rounded, size: 18),
+                  label: const Text('Browse Properties'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryCyan,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: primaryCyan,
+      onRefresh: _loadInterests,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+        itemCount: _interests.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 14),
+        itemBuilder: (context, index) {
+          final item = _interests[index];
+          return _buildInterestedCard(item);
+        },
+      ),
+    );
+  }
+
+  Widget _buildInterestedCard(BuyerInterestedPropertyModel item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => BuyerPropertyDetailsScreen(propertyId: item.propertyId),
+              ),
+            ).then((_) => _loadInterests());
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: item.stageBadgeColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.home_work_rounded, color: item.stageBadgeColor, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: darkText,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: item.stageBadgeColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: item.stageBadgeColor.withValues(alpha: 0.4)),
+                                ),
+                                child: Text(
+                                  item.stageBadgeText,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: item.stageBadgeColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          if (item.districtName != null) ...[
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on_outlined, size: 13, color: secondaryGray),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${item.cityName != null ? "${item.cityName}, " : ""}${item.districtName}',
+                                  style: const TextStyle(color: secondaryGray, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(color: Color(0xFFF1F5F9), height: 1),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text(
+                      _formatCurrency(item.askingPrice),
+                      style: const TextStyle(
+                        color: primaryCyan,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (item.referenceNo.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '#${item.referenceNo}',
+                        style: const TextStyle(color: secondaryGray, fontSize: 11, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                    const Spacer(),
+                    const Text(
+                      'View Details',
+                      style: TextStyle(color: primaryCyan, fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: primaryCyan, size: 11),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

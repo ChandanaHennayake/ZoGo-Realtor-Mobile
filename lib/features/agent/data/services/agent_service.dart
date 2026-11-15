@@ -171,6 +171,46 @@ class AgentService {
   }
 
   // ============================================================
+  // MARK VISIT REQUESTED (PUT /api/v1/agent/properties/{propertyId}/visit-request)
+  // ============================================================
+  Future<bool> markVisitRequested(
+    String propertyId, {
+    required String buyerId,
+    DateTime? scheduledAt,
+    String? timeSlot,
+    String? notes,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final url = ApiConstants.agentMarkVisitRequested(propertyId);
+      final body = {
+        'buyerId': buyerId,
+        if (scheduledAt != null) 'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+        if (timeSlot != null && timeSlot.isNotEmpty) 'timeSlot': timeSlot,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      };
+
+      debugPrint('PUT MARK VISIT REQUESTED: ${_dio.options.baseUrl}$url, payload: $body');
+
+      final response = await _dio.put(
+        url,
+        data: body,
+        options: Options(headers: headers),
+      );
+
+      debugPrint('MARK VISIT REQUESTED STATUS: ${response.statusCode}, DATA: ${response.data}');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('MARK VISIT REQUESTED ERROR: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
   // MARK VISITED (PUT /api/v1/agent/properties/{propertyId}/visit)
   // ============================================================
   Future<bool> markVisited(String propertyId, {String? buyerId}) async {

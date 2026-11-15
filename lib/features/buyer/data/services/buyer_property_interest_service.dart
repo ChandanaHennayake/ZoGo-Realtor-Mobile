@@ -152,6 +152,45 @@ class BuyerPropertyInterestService {
     }
   }
 
+  // ============================================================
+  // GET MY INTERESTS (GET /api/v1/buyer/property-interests/my)
+  // ============================================================
+
+  Future<List<BuyerInterestedPropertyModel>> getMyInterests() async {
+    try {
+      final headers = await _authHeaders();
+      const url = '/api/v1/buyer/property-interests/my';
+      debugPrint('GET MY INTERESTS: ${_dio.options.baseUrl}$url');
+
+      final response = await _dio.get(
+        url,
+        options: Options(headers: headers),
+      );
+
+      debugPrint('GET MY INTERESTS STATUS: ${response.statusCode}');
+
+      if (response.statusCode == 200 && response.data != null) {
+        final resData = response.data;
+        List<dynamic> items = [];
+        if (resData is Map && resData.containsKey('data') && resData['data'] is List) {
+          items = resData['data'] as List;
+        } else if (resData is List) {
+          items = resData;
+        }
+
+        return items
+            .whereType<Map>()
+            .map((e) => BuyerInterestedPropertyModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+
+      return [];
+    } catch (e) {
+      debugPrint('GET MY INTERESTS ERROR: $e');
+      return [];
+    }
+  }
+
   void dispose() {
     _dio.close();
   }
