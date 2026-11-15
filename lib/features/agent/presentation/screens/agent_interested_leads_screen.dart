@@ -316,7 +316,60 @@ class _AgentInterestedLeadsScreenState extends State<AgentInterestedLeadsScreen>
                     style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Preferred Time Slot', style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text('Select Visit Date *', style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 90)),
+                        builder: (ctx, child) {
+                          return Theme(
+                            data: ThemeData.dark().copyWith(
+                              colorScheme: const ColorScheme.dark(
+                                primary: purpleAccent,
+                                onPrimary: Colors.white,
+                                surface: cardDark,
+                                onSurface: Colors.white,
+                              ),
+                              dialogBackgroundColor: cardDark,
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setDialogState(() {
+                          selectedDate = picked;
+                        });
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: purpleAccent.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_available_rounded, color: purpleAccent, size: 18),
+                          const SizedBox(width: 10),
+                          Text(
+                            '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                          const Spacer(),
+                          const Text('Change Date', style: TextStyle(color: purpleAccent, fontSize: 11, fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Preferred Time Slot *', style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),

@@ -117,7 +117,7 @@ class _VisitRequestContactSheetState extends State<VisitRequestContactSheet> {
     try {
       final updated = await BuyerPropertyInteractionService().setInteraction(
         widget.propertyId,
-        BuyerPropertyInteraction.statusVisitRequested,
+        BuyerPropertyInteraction.statusInterested,
       );
       widget.onInteractionUpdated?.call(updated);
     } catch (_) {}
@@ -155,7 +155,7 @@ class _VisitRequestContactSheetState extends State<VisitRequestContactSheet> {
               const Icon(Icons.phone_in_talk_rounded, color: Colors.white, size: 18),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Connecting call to $_displayName ($phone)... Visit request noted.'),
+                child: Text('Connecting call to $_displayName ($phone)... Meeting interest registered.'),
               ),
             ],
           ),
@@ -188,6 +188,7 @@ class _VisitRequestContactSheetState extends State<VisitRequestContactSheet> {
           recipientName: recipientName,
           recipientRole: 'agent',
           currentUserRole: 'buyer',
+          initialMessage: "Hi! I am interested in '${widget.propertyTitle}' and I can meet you for a visit. Please schedule our visit date and time.",
         ),
       ),
     );
@@ -264,7 +265,7 @@ class _VisitRequestContactSheetState extends State<VisitRequestContactSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Request Property Visit',
+                      'Arrange Property Visit',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -274,7 +275,7 @@ class _VisitRequestContactSheetState extends State<VisitRequestContactSheet> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Choose how you want to connect with the assigned agent',
+                      'Tell your realtor "I can meet you". The agent will set the confirmed date & time.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Color(0xFF94A3B8),
@@ -569,26 +570,7 @@ class _VisitRequestContactSheetState extends State<VisitRequestContactSheet> {
             ),
           ),
 
-          if (widget.onScheduleAlternative != null) ...[
-            const SizedBox(height: 16),
-            Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  widget.onScheduleAlternative?.call();
-                },
-                icon: const Icon(Icons.calendar_today_rounded, size: 15, color: Color(0xFF94A3B8)),
-                label: const Text(
-                  'Or pick a date & time slot online',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF94A3B8),
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          const SizedBox(height: 8),
         ],
       ),
     );

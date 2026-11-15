@@ -158,9 +158,9 @@ class WorkflowButtonPolicy {
       return const WorkflowActionState(
         isVisible: true,
         isEnabled: false,
-        label: 'Request Visit',
-        disabledReason: 'Express interest first to schedule a visit.',
-        icon: Icons.calendar_month_outlined,
+        label: 'I Can Meet You',
+        disabledReason: 'Express interest first to meet the realtor for a visit.',
+        icon: Icons.support_agent_rounded,
         color: Color(0xFF3B82F6),
       );
     }
@@ -169,11 +169,11 @@ class WorkflowButtonPolicy {
       return const WorkflowActionState(
         isVisible: true,
         isEnabled: false,
-        label: 'Visit Pending',
-        disabledReason: 'A visit request is currently pending agent confirmation.',
-        icon: Icons.hourglass_top_rounded,
-        color: Color(0xFFF59E0B),
-        backgroundColor: Color(0x1AF59E0B),
+        label: 'Visit Scheduled',
+        disabledReason: 'Your realtor has scheduled this visit date & time.',
+        icon: Icons.event_available_rounded,
+        color: Color(0xFF00C6D4),
+        backgroundColor: Color(0x1A00C6D4),
       );
     }
 
@@ -204,8 +204,8 @@ class WorkflowButtonPolicy {
     return WorkflowActionState(
       isVisible: true,
       isEnabled: !isUpdating,
-      label: 'Request Visit',
-      icon: Icons.calendar_month_outlined,
+      label: 'I Can Meet You',
+      icon: Icons.support_agent_rounded,
       color: const Color(0xFF3B82F6),
     );
   }

@@ -11,6 +11,7 @@ class ChatScreen extends StatefulWidget {
   final String? recipientPhone;
   final String recipientRole; // 'buyer' or 'agent'
   final String? currentUserRole; // 'buyer' or 'agent'
+  final String? initialMessage;
 
   const ChatScreen({
     super.key,
@@ -21,6 +22,7 @@ class ChatScreen extends StatefulWidget {
     this.recipientPhone,
     required this.recipientRole,
     this.currentUserRole,
+    this.initialMessage,
   });
 
   @override
@@ -47,6 +49,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialMessage != null && widget.initialMessage!.trim().isNotEmpty) {
+      _textController.text = widget.initialMessage!.trim();
+    }
     _currentUserRole = widget.currentUserRole ??
         (widget.recipientRole.toLowerCase() == 'buyer' ? 'agent' : 'buyer');
     

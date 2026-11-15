@@ -3,6 +3,7 @@ import '../../data/services/buyer_offer_service.dart';
 import '../../data/services/buyer_property_interaction_service.dart';
 import '../../data/services/buyer_visit_service.dart';
 import '../../models/buyer_property_interaction.dart';
+import '../../models/property_visit_model.dart';
 import '../../../../core/workflow/workflow_button_policy.dart';
 import 'visit_request_contact_sheet.dart';
 
@@ -50,6 +51,7 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
   bool _isLoading = true;
   bool _isUpdating = false;
   BuyerPropertyInteraction? _currentInteraction;
+  PropertyVisitModel? _activeVisit;
 
   @override
   void initState() {
@@ -71,9 +73,19 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
 
     try {
       final interaction = await _service.getInteraction(widget.propertyId);
+      PropertyVisitModel? visit;
+      try {
+        final visits = await _visitService.getMyVisits();
+        final match = visits.where((v) => v.propertyId.toLowerCase() == widget.propertyId.toLowerCase()).toList();
+        if (match.isNotEmpty) {
+          visit = match.first;
+        }
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
         _currentInteraction = interaction;
+        _activeVisit = visit;
         _isLoading = false;
       });
       widget.onInteractionChanged?.call(interaction);
@@ -326,6 +338,55 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
               ),
             ),
 
+            if (_activeVisit != null && (status == BuyerPropertyInteraction.statusVisitRequested || status == BuyerPropertyInteraction.statusVisited)) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C6D4).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00C6D4).withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C6D4).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.event_available_rounded, color: Color(0xFF00C6D4), size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Visit Scheduled by Realtor',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: darkText,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Date: ${_activeVisit!.scheduledAt.year}-${_activeVisit!.scheduledAt.month.toString().padLeft(2, '0')}-${_activeVisit!.scheduledAt.day.toString().padLeft(2, '0')}  |  ${_activeVisit!.timeSlot}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: Color(0xFF0097A7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 18),
 
             // Visual Progress Flow (Timeline Stepper)
@@ -510,7 +571,7 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
       agentUserId: widget.agentUserId,
       districtId: widget.districtId,
       districtName: widget.districtName,
-      onScheduleAlternative: _showScheduleCalendarModal,
+      onScheduleAlternative: null,
       onInteractionUpdated: (updated) {
         if (!mounted) return;
         if (updated != null) {
@@ -521,220 +582,6 @@ class BuyerInteractionSectionState extends State<BuyerInteractionSection> {
         }
       },
     );
-  }
-
-  Future<void> _showScheduleCalendarModal() async {
-    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
-    String selectedSlot = 'Morning (09:00 - 12:00)';
-    final notesController = TextEditingController();
-
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: EdgeInsets.only(
-            top: 24,
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF3B82F6), size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Schedule Property Visit',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: darkText),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Select Preferred Date',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
-              ),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: selectedDate,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 60)),
-                  );
-                  if (picked != null) {
-                    setModalState(() {
-                      selectedDate = picked;
-                    });
-                  }
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.event, color: primaryCyan, size: 20),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                      const Spacer(),
-                      const Text('Change', style: TextStyle(color: primaryCyan, fontWeight: FontWeight.w700, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Preferred Time Slot',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  'Morning (09:00 - 12:00)',
-                  'Afternoon (13:00 - 16:00)',
-                  'Evening (16:00 - 18:00)',
-                ].map((slot) {
-                  final isSel = selectedSlot == slot;
-                  return ChoiceChip(
-                    label: Text(slot),
-                    selected: isSel,
-                    selectedColor: primaryCyan.withValues(alpha: 0.15),
-                    labelStyle: TextStyle(
-                      color: isSel ? primaryCyan : darkText,
-                      fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                    onSelected: (val) {
-                      if (val) {
-                        setModalState(() {
-                          selectedSlot = slot;
-                        });
-                      }
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Notes or Questions for Agent (Optional)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: darkText),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: notesController,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'e.g. Interested in seeing parking space and title deeds...',
-                  hintStyle: const TextStyle(fontSize: 12, color: secondaryGray),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryCyan,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Confirm & Schedule Visit', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (result == true) {
-      setState(() {
-        _isUpdating = true;
-      });
-
-      try {
-        await _visitService.scheduleVisit(
-          propertyId: widget.propertyId,
-          scheduledAt: selectedDate,
-          timeSlot: selectedSlot,
-          buyerNotes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
-        );
-
-        await _handleUpdateInteraction(
-          BuyerPropertyInteraction.statusVisitRequested,
-          'Visit requested',
-        );
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text('Visit scheduled for ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')} ($selectedSlot)'),
-              ],
-            ),
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to schedule visit: $e'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isUpdating = false;
-          });
-        }
-      }
-    }
   }
 
   Future<void> _handleSubmitOffer() async {
